@@ -13,18 +13,32 @@ const axios = require('axios');
 const http = require('http');
 
 // Environment variables
-const MANAGER_PHONE = process.env.MANAGER_PHONE || '923000000000'; // Default placeholder
+const MANAGER_PHONE = process.env.MANAGER_PHONE || '923000000000';
 const BOOKING_URL = process.env.BOOKING_URL || 'http://localhost:3000/book';
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
-// Global socket instance for external exports
+// Global socket instance
 let sock = null;
 let isConnecting = false;
 
-// Helper: Add delay between messages to prevent spam/blocks
+// ─── Anti-spam state ──────────────────────────────────────────────────────────
+// Tracks users who have already received the welcome message
+const welcomedUsers = new Set();
+// Reset every 24 hours so users get the welcome again the next day
+cron.schedule('0 0 * * *', () => {
+    welcomedUsers.clear();
+    console.log('🔄 welcomedUsers reset for new day');
+});
+
+// Prevents duplicate confirmation messages
+const confirmationsSent = new Set();
+
+// Prevents duplicate reminders per booking per day
+const remindersSent = new Set();
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Helper: Format phone number for Baileys
 const formatPhone = (phone) => {
     let cleaned = phone.replace(/[^0-9]/g, '');
     if (cleaned.startsWith('03')) {
@@ -33,11 +47,42 @@ const formatPhone = (phone) => {
     return `${cleaned}@s.whatsapp.net`;
 };
 
+const formatTime = (timeStr) => {
+    const [hours, minutes] = timeStr.split(':');
+    const h = parseInt(hours, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h % 12 === 0 ? 12 : h % 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+};
+
+// ─── Message templates ────────────────────────────────────────────────────────
+const WELCOME_MSG = `👋 *Welcome to Sports Ground Booking!*
+
+Book your ground in minutes:
+🏟️ 5 Premium Grounds Available
+⚡ Instant Confirmation
+💳 30% Advance Online | 70% at Ground
+🕐 Open 24/7
+
+👇 *Click here to book your slot:*
+${BOOKING_URL}
+
+_Reply HELP for assistance_`;
+
+const HELP_MSG = `🆘 *Need Help?*
+
+For booking issues contact:
+📞 ${MANAGER_PHONE}
+
+*Common questions:*
+- To cancel: Contact us 24hrs before your slot
+- Payment: 30% advance secures your slot
+- Remaining 70% paid at the ground
+- To check your booking: visit the booking link`;
+
 // ==========================================
 // PART 1: CONNECTION
 // ==========================================
-// Note: If still looping, manually delete the auth_info_baileys folder and restart
-
 async function connectToWhatsApp() {
     if (isConnecting) return;
     isConnecting = true;
@@ -72,9 +117,7 @@ async function connectToWhatsApp() {
                 isConnecting = false;
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
                 const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-
                 console.log('❌ Connection closed. Status code:', statusCode);
-
                 if (shouldReconnect) {
                     console.log('🔄 Reconnecting in 10 seconds...');
                     setTimeout(connectToWhatsApp, 10000);
@@ -94,36 +137,54 @@ async function connectToWhatsApp() {
             if (type !== 'notify') return;
 
             for (const msg of messages) {
-                // Ignore messages sent by the bot itself
-                if (!msg.message || msg.key.fromMe) continue;
-                // Ignore group messages or status updates
-                if (msg.key.remoteJid.includes('@g.us') || msg.key.remoteJid === 'status@broadcast') continue;
+                // Guard 1: ignore messages the bot sent itself
+                if (!msg.message || msg.key.fromMe === true) continue;
 
-                const sender = msg.key.remoteJid;
-                const messageText = msg.message.conversation || msg.message.extendedTextMessage?.text;
+                const remoteJid = msg.key.remoteJid || '';
+
+                // Guard 2: ignore groups, broadcast, and status
+                if (remoteJid.includes('@g.us')) continue;
+                if (remoteJid.includes('broadcast')) continue;
+                if (remoteJid.includes('status')) continue;
+
+                // Guard 3: ignore old messages (e.g. queued during offline period)
+                const messageAge = Date.now() - (msg.messageTimestamp * 1000);
+                if (messageAge > 30000) continue;
+
+                const sender = remoteJid;
+                const messageText =
+                    msg.message.conversation ||
+                    msg.message.extendedTextMessage?.text || '';
                 if (!messageText) continue;
 
                 const textLower = messageText.toLowerCase().trim();
 
-                if (textLower === 'help') {
-                    await delay(1000); // Natural delay
-                    try {
-                        await sock.sendMessage(sender, {
-                            text: `🆘 *Need Help?*\n\nFor booking issues contact:\n📞 ${MANAGER_PHONE}\n\n*Common questions:*\n- To cancel: Contact us 24hrs before\n- Payment: 30% advance secures your slot\n- Remaining 70% paid at the ground`
-                        });
-                    } catch (err) {
-                        console.error('Failed to send HELP message:', err);
-                    }
-                } else {
+                // User has NOT received a welcome yet → send welcome, track them
+                if (!welcomedUsers.has(sender)) {
+                    welcomedUsers.add(sender);
                     await delay(1000);
                     try {
-                        await sock.sendMessage(sender, {
-                            text: `👋 *Welcome to Sports Ground Booking!*\n\nBook your ground in minutes:\n🏟️ 5 Premium Grounds Available\n⚡ Instant Confirmation  \n💳 30% Advance Online | 70% at Ground\n🕐 Open 24/7\n\n👇 *Click below to book your slot:*\n${BOOKING_URL}\n\n_Reply HELP for assistance_`
-                        });
+                        await sock.sendMessage(sender, { text: WELCOME_MSG });
+                        console.log(`👋 Welcome sent to ${sender}`);
                     } catch (err) {
-                        console.error('Failed to send WELCOME message:', err);
+                        console.error('Failed to send welcome message:', err);
                     }
+                    continue;
                 }
+
+                // User already welcomed → only respond to "help"
+                if (textLower === 'help') {
+                    await delay(1000);
+                    try {
+                        await sock.sendMessage(sender, { text: HELP_MSG });
+                        console.log(`🆘 Help sent to ${sender}`);
+                    } catch (err) {
+                        console.error('Failed to send help message:', err);
+                    }
+                    continue;
+                }
+
+                // All other messages from welcomed users → ignore completely
             }
         });
 
@@ -143,32 +204,48 @@ async function sendBookingConfirmation(booking, groundName) {
         return;
     }
 
+    // Deduplicate: never send the same confirmation twice
+    if (confirmationsSent.has(booking.booking_ref)) {
+        console.log(`⚠️ Confirmation already sent for ${booking.booking_ref}, skipping.`);
+        return;
+    }
+    confirmationsSent.add(booking.booking_ref);
+
     try {
         const jid = formatPhone(booking.customer_phone);
 
-        // Format Date (e.g. 2026-02-27 -> Friday, 27 Feb 2026)
         const dateObj = new Date(booking.date);
-        const options = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' };
-        const prettyDate = dateObj.toLocaleDateString('en-GB', options);
-
-        // Format Time (e.g. 18:00:00 -> 6:00 PM)
-        const formatTime = (timeStr) => {
-            const [hours, minutes] = timeStr.split(':');
-            const h = parseInt(hours, 10);
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            const displayHour = h % 12 === 0 ? 12 : h % 12;
-            return `${displayHour}:${minutes} ${ampm}`;
-        };
+        const prettyDate = dateObj.toLocaleDateString('en-GB', {
+            weekday: 'long', year: 'numeric', month: 'short', day: 'numeric',
+        });
 
         const startTime = formatTime(booking.start_time);
         const endTime = formatTime(booking.end_time);
 
-        const msg = `✅ *BOOKING CONFIRMED!*\n\n*Booking Reference:* ${booking.booking_ref}\n*Ground:* ${groundName}\n*Date:* ${prettyDate}\n*Time:* ${startTime} → ${endTime}\n*Duration:* ${booking.duration_hours} hours\n\n💰 *Payment Summary:*\nTotal: PKR ${booking.base_price.toLocaleString('en-PK')}\n✅ Advance Paid: PKR ${booking.advance_amount.toLocaleString('en-PK')}\n⏳ Remaining at Ground: PKR ${booking.remaining_amount.toLocaleString('en-PK')}\n\n👤 *Your Details:*\nName: ${booking.customer_name}\nPhone: ${booking.customer_phone}\n\n_Please arrive 10 minutes before your slot._\n_Show this message at the entrance._\n\n🏟️ Sports Ground System`;
+        const msg =
+            `✅ *BOOKING CONFIRMED!*\n\n` +
+            `*Booking Reference:* ${booking.booking_ref}\n` +
+            `*Ground:* ${groundName}\n` +
+            `*Date:* ${prettyDate}\n` +
+            `*Time:* ${startTime} → ${endTime}\n` +
+            `*Duration:* ${booking.duration_hours} hours\n\n` +
+            `💰 *Payment Summary:*\n` +
+            `Total: PKR ${booking.base_price.toLocaleString('en-PK')}\n` +
+            `✅ Advance Paid: PKR ${booking.advance_amount.toLocaleString('en-PK')}\n` +
+            `⏳ Remaining at Ground: PKR ${booking.remaining_amount.toLocaleString('en-PK')}\n\n` +
+            `👤 *Your Details:*\n` +
+            `Name: ${booking.customer_name}\n` +
+            `Phone: ${booking.customer_phone}\n\n` +
+            `_Please arrive 10 minutes before your slot._\n` +
+            `_Show this message at the entrance._\n\n` +
+            `🏟️ Sports Ground System`;
 
         await sock.sendMessage(jid, { text: msg });
         console.log(`✅ Confirmation sent to ${booking.customer_phone}`);
     } catch (err) {
         console.error(`❌ Failed to send confirmation to ${booking.customer_phone}:`, err);
+        // Remove from sent set so we can retry
+        confirmationsSent.delete(booking.booking_ref);
     }
 }
 
@@ -189,22 +266,18 @@ async function sendDailyReport(report) {
             .map(([name, amount]) => `• ${name}: PKR ${Number(amount).toLocaleString()}`)
             .join('\n');
 
-        const message = `📊 *DAILY REPORT - ${report.date}*
-
-🏟️ *Ground Bookings:*
-${groundLines}
-*Booking Total: PKR ${Number(report.bookings.total).toLocaleString()}*
-
-🛒 *Tuck Shop:*
-- Cash: PKR ${Number(report.tuckShop.cash).toLocaleString()}
-- Online: PKR ${Number(report.tuckShop.online).toLocaleString()}
-*Shop Total: PKR ${Number(report.tuckShop.total).toLocaleString()}*
-
-💵 *Grand Total: PKR ${Number(report.grandTotal).toLocaleString()}*
-- Cash: PKR ${Number(report.bookings.cash + report.tuckShop.cash).toLocaleString()}
-- Online: PKR ${Number(report.bookings.online + report.tuckShop.online).toLocaleString()}
-
-_Auto-generated by Sports Ground System_`;
+        const message =
+            `📊 *DAILY REPORT - ${report.date}*\n\n` +
+            `🏟️ *Ground Bookings:*\n${groundLines}\n` +
+            `*Booking Total: PKR ${Number(report.bookings.total).toLocaleString()}*\n\n` +
+            `🛒 *Tuck Shop:*\n` +
+            `- Cash: PKR ${Number(report.tuckShop.cash).toLocaleString()}\n` +
+            `- Online: PKR ${Number(report.tuckShop.online).toLocaleString()}\n` +
+            `*Shop Total: PKR ${Number(report.tuckShop.total).toLocaleString()}*\n\n` +
+            `💵 *Grand Total: PKR ${Number(report.grandTotal).toLocaleString()}*\n` +
+            `- Cash: PKR ${Number(report.bookings.cash + report.tuckShop.cash).toLocaleString()}\n` +
+            `- Online: PKR ${Number(report.bookings.online + report.tuckShop.online).toLocaleString()}\n\n` +
+            `_Auto-generated by Sports Ground System_`;
 
         await sock.sendMessage(phone, { text: message });
         console.log('📊 Daily report sent to manager');
@@ -216,11 +289,12 @@ _Auto-generated by Sports Ground System_`;
 // ==========================================
 // PART 5: SCHEDULED REMINDERS
 // ==========================================
-// Run every 30 minutes
 cron.schedule('*/30 * * * *', async () => {
     if (!sock) return;
 
     console.log('⏳ Running scheduled reminder check...');
+    const today = new Date().toISOString().split('T')[0];
+
     try {
         const res = await axios.get(`${BACKEND_URL}/api/availability/reminders`);
         const bookings = res.data.bookings || [];
@@ -232,33 +306,40 @@ cron.schedule('*/30 * * * *', async () => {
 
         console.log(`Found ${bookings.length} upcoming bookings. Sending reminders...`);
 
-        // Format Time Helper
-        const formatTime = (timeStr) => {
-            const [hours, minutes] = timeStr.split(':');
-            const h = parseInt(hours, 10);
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            const displayHour = h % 12 === 0 ? 12 : h % 12;
-            return `${displayHour}:${minutes} ${ampm}`;
-        };
-
         for (const b of bookings) {
+            // Deduplicate: only send one reminder per booking per day
+            const reminderKey = `${b.booking_ref}_${today}`;
+            if (remindersSent.has(reminderKey)) {
+                console.log(`⚠️ Reminder already sent today for ${b.booking_ref}, skipping.`);
+                continue;
+            }
+            remindersSent.add(reminderKey);
+
             try {
                 const jid = formatPhone(b.customer_phone);
-
                 const dateObj = new Date(b.date);
-                const options = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' };
-                const prettyDate = dateObj.toLocaleDateString('en-GB', options);
+                const prettyDate = dateObj.toLocaleDateString('en-GB', {
+                    weekday: 'long', year: 'numeric', month: 'short', day: 'numeric',
+                });
                 const prettyTime = formatTime(b.start_time);
 
-                const msg = `⏰ *BOOKING REMINDER*\n\nYour ground booking is in 2 hours!\n\n🏟️ Ground: ${b.grounds?.name || b.ground_id}\n📅 Date: ${prettyDate}  \n🕐 Time: ${prettyTime}\n⏱️ Duration: ${b.duration_hours} hours\n\n💰 Remember to bring PKR ${b.remaining_amount.toLocaleString('en-PK')} for remaining payment.\n\nSee you soon! 🏃`;
+                const msg =
+                    `⏰ *BOOKING REMINDER*\n\n` +
+                    `Your ground booking is in 2 hours!\n\n` +
+                    `🏟️ Ground: ${b.grounds?.name || b.ground_id}\n` +
+                    `📅 Date: ${prettyDate}\n` +
+                    `🕐 Time: ${prettyTime}\n` +
+                    `⏱️ Duration: ${b.duration_hours} hours\n\n` +
+                    `💰 Remember to bring PKR ${b.remaining_amount.toLocaleString('en-PK')} for remaining payment.\n\n` +
+                    `See you soon! 🏃`;
 
                 await sock.sendMessage(jid, { text: msg });
                 console.log(`✅ Reminder sent to ${b.customer_phone}`);
-
-                // Keep anti-spam delay between multiple outgoing msgs
                 await delay(2000);
             } catch (err) {
                 console.error(`❌ Failed to send reminder to ${b.customer_phone}:`, err);
+                // Remove from sent set so we can retry next cycle
+                remindersSent.delete(`${b.booking_ref}_${today}`);
             }
         }
     } catch (err) {
@@ -312,7 +393,7 @@ botServer.listen(3002, () => {
 });
 
 module.exports = {
-    sock, // Exporting for external modules if needed
+    sock,
     sendBookingConfirmation,
-    sendDailyReport
+    sendDailyReport,
 };
