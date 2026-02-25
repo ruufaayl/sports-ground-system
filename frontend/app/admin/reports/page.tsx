@@ -1,194 +1,182 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RT, ResponsiveContainer } from 'recharts';
+
+const fmt = (n: number) =>
+    new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 }).format(n || 0);
+const fmtDate = (d: string) =>
+    new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
+const dayLabel = (d: string) =>
+    new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+const pct = (p: number, t: number) => (t ? Math.round((p / t) * 100) : 0);
+
+function Stat({ label, value, color }: { label: string; value: string; color: string }) {
+    return (
+        <div style={{ flex: 1, background: '#0d0d1a', borderRadius: 12, padding: '20px 24px', border: `1px solid ${color}22`, textAlign: 'center' }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 10px' }}>{label}</p>
+            <p style={{ fontSize: 32, fontWeight: 800, color, margin: 0, fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+        </div>
+    );
+}
 
 export default function AdminReports() {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [report, setReport] = useState<any>(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const [weekly, setWeekly] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [sending, setSending] = useState(false);
 
-    useEffect(() => {
-        fetchReport(date);
-    }, [date]);
-
-    const fetchReport = async (selectedDate: string) => {
-        if (!selectedDate) return;
-        setIsLoading(true);
-        const secret = localStorage.getItem('adminSecret');
+    const load = useCallback(async (d: string) => {
+        if (!d) return;
+        setLoading(true);
+        const s = localStorage.getItem('adminSecret') || '';
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/reports/daily/${selectedDate}`, {
-                headers: { 'x-admin-secret': secret || '' }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setReport(data);
-            } else {
-                setReport(null);
+            const [dr, wr] = await Promise.all([
+                fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/reports/daily/${d}`, { headers: { 'x-admin-secret': s } }),
+                fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/reports/weekly`, { headers: { 'x-admin-secret': s } }),
+            ]);
+            setReport(dr.ok ? await dr.json() : null);
+            if (wr.ok) {
+                const r = (await wr.json()) as any[];
+                setWeekly(r.reverse().map(x => ({ day: dayLabel(x.date), bookings: x.bookingRevenue, tuck: x.tuckRevenue })));
             }
-        } catch (err) {
-            console.error('Failed to load report:', err);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+        } finally { setLoading(false); }
+    }, []);
 
-    const handleSendReport = async () => {
-        const secret = localStorage.getItem('adminSecret');
+    useEffect(() => { load(date); }, [date, load]);
+
+    const send = async () => {
+        if (!confirm('Send daily report to WhatsApp?')) return;
+        setSending(true);
         try {
-            if (!confirm('Send today\'s daily report to WhatsApp?')) return;
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/reports/send-daily`, {
-                method: 'POST',
-                headers: { 'x-admin-secret': secret || '' }
+            const r = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/reports/send-daily`, {
+                method: 'POST', headers: { 'x-admin-secret': localStorage.getItem('adminSecret') || '' },
             });
-            if (res.ok) {
-                alert('Daily Report sent successfully!');
-            } else {
-                alert('Failed to send report.');
-            }
-        } catch (err) {
-            console.error(err);
-            alert('Error sending report.');
-        }
-    };
-
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 }).format(amount || 0);
-    };
-
-    // Safe percentage calculator
-    const calcPercent = (part: number, total: number) => {
-        if (!total || total === 0) return 0;
-        return Math.round((part / total) * 100);
+            alert(r.ok ? '✅ Report sent!' : '❌ Failed.');
+        } finally { setSending(false); }
     };
 
     return (
-        <div className="space-y-6 pb-10">
-            <div className="flex justify-between items-center flex-wrap gap-4">
-                <h2 className="text-3xl font-black text-white tracking-widest drop-shadow-[0_0_8px_rgba(255,255,255,0.3)] uppercase">
-                    Daily Revenue Report
-                </h2>
+        <div style={{ fontFamily: "'Inter',sans-serif", color: '#fff' }}>
+            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
-                <div className="flex items-center space-x-4">
-                    <input
-                        type="date"
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                        className="bg-[#1a1a2e] border border-[#00ff88]/30 rounded-xl px-4 py-2 focus:outline-none focus:border-[#00ff88] text-white font-mono shadow-[0_0_10px_rgba(0,255,136,0.1)]"
-                    />
-                    <button
-                        onClick={handleSendReport}
-                        className="bg-[#00ff88]/10 hover:bg-[#00ff88]/20 border border-[#00ff88]/30 text-[#00ff88] px-4 py-2 flex items-center space-x-2 rounded-xl font-bold transition-colors shadow-[0_0_10px_rgba(0,255,136,0.2)]"
-                    >
-                        <span>📱</span>
-                        <span>SEND WHATSAPP DASHBOARD</span>
-                    </button>
-                </div>
-            </div>
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 28 }}>
+                <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Financial Reports</h1>
+                <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>Daily breakdowns and weekly trends</p>
+            </motion.div>
 
-            {isLoading ? (
-                <div className="h-64 flex items-center justify-center text-[#00ff88] text-xl font-bold animate-pulse">
-                    Loading Financial Data...
+            {/* Date selector */}
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+                style={{ background: '#111827', borderRadius: 16, padding: 20, marginBottom: 24, border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 14, color: '#9ca3af' }}>Select Date:</span>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                    style={{ background: '#0d0d1a', border: '1px solid rgba(0,255,136,0.25)', borderRadius: 8, padding: '10px 14px', color: '#fff', height: 44, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
+                <button onClick={() => load(date)}
+                    style={{ height: 44, padding: '0 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00ff88,#00cc6a)', color: '#000', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Generate Report
+                </button>
+                <button onClick={send} disabled={sending}
+                    style={{ height: 44, padding: '0 24px', borderRadius: 8, border: '1px solid rgba(0,255,136,0.4)', background: 'transparent', color: '#00ff88', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: sending ? 0.6 : 1 }}>
+                    {sending ? 'Sending...' : '📱 Send to WhatsApp'}
+                </button>
+            </motion.div>
+
+            {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200, gap: 12 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid rgba(0,255,136,0.2)', borderTopColor: '#00ff88', animation: 'spin 0.7s linear infinite' }} />
+                    <span style={{ color: '#6b7280' }}>Generating report...</span>
                 </div>
             ) : !report ? (
-                <div className="bg-[#1a1a2e] border border-red-500/20 rounded-2xl p-10 text-center text-red-400">
-                    No data found or failed to load.
+                <div style={{ background: '#111827', borderRadius: 16, padding: 48, textAlign: 'center', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
+                    <p style={{ color: '#6b7280', margin: 0 }}>Select a date to view report</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                    {/* Top stats */}
+                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                        style={{ background: '#111827', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <div style={{ marginBottom: 20, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                            <p style={{ fontSize: 12, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 4px' }}>Report for</p>
+                            <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{fmtDate(date)}</h2>
+                        </div>
+                        <div style={{ display: 'flex', gap: 16 }}>
+                            <Stat label="Booking Revenue" value={fmt(report.bookings?.total ?? 0)} color="#00ff88" />
+                            <Stat label="Tuck Shop Revenue" value={fmt(report.tuckShop?.total ?? 0)} color="#0088ff" />
+                            <div style={{ flex: 1, background: 'linear-gradient(135deg,rgba(0,255,136,0.08),rgba(0,136,255,0.08))', borderRadius: 12, padding: '20px 24px', border: '1px solid rgba(0,255,136,0.15)', textAlign: 'center' }}>
+                                <p style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 10px' }}>Grand Total</p>
+                                <p style={{ fontSize: 36, fontWeight: 900, margin: 0, background: 'linear-gradient(135deg,#00ff88,#0088ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                    {fmt(report.grandTotal ?? 0)}
+                                </p>
+                            </div>
+                        </div>
+                    </motion.div>
 
-                    {/* GRAND TOTAL */}
-                    <div className="lg:col-span-2 bg-[#1a1a2e] border border-[#00ff88]/20 rounded-2xl p-8 shadow-[inset_0_0_20px_rgba(0,255,136,0.05)] text-center relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#00ff88] to-transparent opacity-50"></div>
-                        <h3 className="text-gray-400 font-bold tracking-widest mb-2">GRAND TOTAL ALL REVENUE</h3>
-                        <p className="text-5xl font-black text-[#00ff88] drop-shadow-[0_0_15px_rgba(0,255,136,0.4)]">
-                            {formatCurrency(report.grandTotal)}
-                        </p>
-                    </div>
-
-                    {/* BOOKINGS BREAKDOWN */}
-                    <div className="bg-[#1a1a2e] border border-blue-500/20 rounded-2xl p-6 shadow-lg">
-                        <h3 className="text-xl font-bold text-white mb-6 border-b border-gray-800 pb-2 flex justify-between">
-                            <span>🏟️ Bookings Revenue</span>
-                            <span className="text-[#0088ff]">{formatCurrency(report.bookings.total)}</span>
-                        </h3>
-
-                        <div className="space-y-6">
-                            <div>
-                                <div className="flex justify-between mb-1 text-sm font-bold">
-                                    <span className="text-gray-400">Cash collection ({calcPercent(report.bookings.cash, report.bookings.total)}%)</span>
-                                    <span className="text-white">{formatCurrency(report.bookings.cash)}</span>
+                    {/* Breakdown row */}
+                    <div style={{ display: 'flex', gap: 20 }}>
+                        {/* Payment method */}
+                        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+                            style={{ flex: 1, background: '#111827', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 20px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Payment Split</h3>
+                            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+                                <div style={{ flex: 1, background: '#0d0d1a', borderRadius: 10, padding: 16, textAlign: 'center' }}>
+                                    <p style={{ fontSize: 11, color: '#6b7280', margin: '0 0 6px', textTransform: 'uppercase' }}>Cash</p>
+                                    <p style={{ fontSize: 22, fontWeight: 800, color: '#00ff88', margin: 0 }}>{fmt(report.bookings?.cash ?? 0)}</p>
                                 </div>
-                                <div className="w-full bg-black/50 rounded-full h-3">
-                                    <div className="bg-green-500 h-3 rounded-full" style={{ width: `${calcPercent(report.bookings.cash, report.bookings.total)}%` }}></div>
+                                <div style={{ flex: 1, background: '#0d0d1a', borderRadius: 10, padding: 16, textAlign: 'center' }}>
+                                    <p style={{ fontSize: 11, color: '#6b7280', margin: '0 0 6px', textTransform: 'uppercase' }}>Online</p>
+                                    <p style={{ fontSize: 22, fontWeight: 800, color: '#0088ff', margin: 0 }}>{fmt(report.bookings?.online ?? 0)}</p>
                                 </div>
                             </div>
-
-                            <div>
-                                <div className="flex justify-between mb-1 text-sm font-bold">
-                                    <span className="text-gray-400">Online transfers ({calcPercent(report.bookings.online, report.bookings.total)}%)</span>
-                                    <span className="text-white">{formatCurrency(report.bookings.online)}</span>
-                                </div>
-                                <div className="w-full bg-black/50 rounded-full h-3">
-                                    <div className="bg-[#0088ff] h-3 rounded-full" style={{ width: `${calcPercent(report.bookings.online, report.bookings.total)}%` }}></div>
-                                </div>
+                            <div style={{ height: 8, borderRadius: 4, background: '#1a1a2e', overflow: 'hidden', display: 'flex' }}>
+                                <div style={{ width: `${pct(report.bookings?.cash ?? 0, report.bookings?.total ?? 1)}%`, background: '#00ff88' }} />
+                                <div style={{ flex: 1, background: '#0088ff' }} />
                             </div>
+                        </motion.div>
 
-                            <div className="pt-4 border-t border-gray-800">
-                                <h4 className="text-sm font-bold text-gray-500 mb-3 tracking-widest uppercase">By Ground Performance</h4>
-                                <div className="space-y-3">
-                                    {Object.entries(report.bookings.byGround).map(([name, amount]: any) => (
-                                        <div key={name} className="flex justify-between items-center text-sm">
-                                            <span className="text-gray-300 font-medium">{name}</span>
-                                            <span className="font-mono text-[#00ff88]">{formatCurrency(amount)}</span>
+                        {/* Ground breakdown */}
+                        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+                            style={{ flex: 1, background: '#111827', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 20px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Revenue by Ground</h3>
+                            {Object.keys(report.bookings?.byGround ?? {}).length === 0 ? (
+                                <p style={{ color: '#4b5563', fontSize: 13 }}>No paid bookings on this date.</p>
+                            ) : (
+                                Object.entries(report.bookings?.byGround ?? {}).map(([n, a]: any) => (
+                                    <div key={n} style={{ marginBottom: 14 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                            <span style={{ fontSize: 13, color: '#d1d5db' }}>{n}</span>
+                                            <span style={{ fontSize: 13, fontWeight: 700, color: '#00ff88' }}>{fmt(a)}</span>
                                         </div>
-                                    ))}
-                                    {Object.keys(report.bookings.byGround).length === 0 && (
-                                        <div className="text-xs text-gray-500 italic">No bookings paid today.</div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* TUCK SHOP BREAKDOWN */}
-                    <div className="bg-[#1a1a2e] border border-orange-500/20 rounded-2xl p-6 shadow-lg">
-                        <h3 className="text-xl font-bold text-white mb-6 border-b border-gray-800 pb-2 flex justify-between">
-                            <span>🛒 Tuck Shop Sales</span>
-                            <span className="text-orange-400">{formatCurrency(report.tuckShop.total)}</span>
-                        </h3>
-
-                        <div className="space-y-6">
-                            <div>
-                                <div className="flex justify-between mb-1 text-sm font-bold">
-                                    <span className="text-gray-400">Counter Cash ({calcPercent(report.tuckShop.cash, report.tuckShop.total)}%)</span>
-                                    <span className="text-white">{formatCurrency(report.tuckShop.cash)}</span>
-                                </div>
-                                <div className="w-full bg-black/50 rounded-full h-3">
-                                    <div className="bg-orange-500 h-3 rounded-full" style={{ width: `${calcPercent(report.tuckShop.cash, report.tuckShop.total)}%` }}></div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="flex justify-between mb-1 text-sm font-bold">
-                                    <span className="text-gray-400">Digital Methods ({calcPercent(report.tuckShop.online, report.tuckShop.total)}%)</span>
-                                    <span className="text-white">{formatCurrency(report.tuckShop.online)}</span>
-                                </div>
-                                <div className="w-full bg-black/50 rounded-full h-3">
-                                    <div className="bg-purple-500 h-3 rounded-full" style={{ width: `${calcPercent(report.tuckShop.online, report.tuckShop.total)}%` }}></div>
-                                </div>
-                            </div>
-
-                            <div className="pt-4 mt-8 flex h-full items-center justify-center">
-                                <div className="text-center p-4 bg-orange-500/5 rounded-xl border border-orange-500/10 w-full max-w-sm">
-                                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-2">Total Combined Cash Flow</div>
-                                    <div className="text-2xl font-black text-white">
-                                        {formatCurrency(report.bookings.cash + report.tuckShop.cash)}
+                                        <div style={{ height: 6, borderRadius: 4, background: '#1a1a2e' }}>
+                                            <div style={{ width: `${pct(a, report.bookings?.total ?? 1)}%`, height: '100%', background: '#00ff88', borderRadius: 4 }} />
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
+                                ))
+                            )}
+                        </motion.div>
                     </div>
 
+                    {/* Weekly chart */}
+                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+                        style={{ background: '#111827', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 24px' }}>Last 7 Days Revenue</h3>
+                        {weekly.length === 0 ? (
+                            <p style={{ color: '#4b5563', textAlign: 'center', padding: 40 }}>No weekly data.</p>
+                        ) : (
+                            <ResponsiveContainer width="100%" height={220}>
+                                <BarChart data={weekly} barGap={4}>
+                                    <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.05)" />
+                                    <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                                    <RT cursor={{ fill: 'rgba(0,255,136,0.05)' }} contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(0,255,136,0.2)', borderRadius: 8, fontSize: 12 }} formatter={(v: any) => [fmt(v), '']} />
+                                    <Bar dataKey="bookings" name="Bookings" fill="#00ff88" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
+                                    <Bar dataKey="tuck" name="Tuck Shop" fill="#0088ff" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        )}
+                    </motion.div>
                 </div>
             )}
         </div>
