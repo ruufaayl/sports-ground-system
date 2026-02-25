@@ -17,10 +17,17 @@ const PORT = process.env.PORT || 3001;
 // ─── Security middleware ───────────────────────────────────────────────────────
 app.use(helmet());
 
-// ─── CORS — allow only the frontend URL ───────────────────────────────────────
+// ─── CORS — allow localhost + production Vercel URL ───────────────────────────
 app.use(
     cors({
-        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+        origin: [
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'https://sports-ground-system.vercel.app',
+            process.env.FRONTEND_URL,
+        ].filter(Boolean),
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'x-admin-secret'],
         credentials: true,
     })
 );
