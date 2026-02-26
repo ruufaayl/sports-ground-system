@@ -17,7 +17,7 @@ const STATUS_STYLES: Record<string, { bg: string; border: string; color: string;
     cancelled: { bg: 'rgba(139,26,43,0.15)', border: 'rgba(139,26,43,0.4)', color: '#8B1A2B', label: '● CANCELLED' },
 };
 
-const GROUNDS = ['G1', 'G2', 'G3', 'G4', 'G5'];
+interface GroundInfo { id: string; name: string; }
 
 export default function BookingsPage() {
     const [bookings, setBookings] = useState<Array<Record<string, unknown>>>([]);
@@ -26,6 +26,10 @@ export default function BookingsPage() {
     const [totalPages, setTotalPages] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
     const [expandedRow, setExpandedRow] = useState<string | null>(null);
+
+    // Grounds from API (for UUID mapping)
+    const [grounds, setGrounds] = useState<GroundInfo[]>([]);
+    const [groundsMap, setGroundsMap] = useState<Record<string, string>>({}); // name → UUID
 
     // Filter state
     const [searchQuery, setSearchQuery] = useState('');
@@ -38,6 +42,24 @@ export default function BookingsPage() {
 
     const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const adminSecret = typeof window !== 'undefined' ? localStorage.getItem('adminSecret') || '' : '';
+
+    // 1. Load grounds on mount
+    useEffect(() => {
+        const loadGrounds = async () => {
+            try {
+                const res = await fetch(`${BASE}/api/grounds`);
+                const data = await res.json();
+                const list: GroundInfo[] = (data.grounds || []).map((g: Record<string, unknown>) => ({ id: g.id as string, name: g.name as string }));
+                setGrounds(list);
+                const map: Record<string, string> = {};
+                list.forEach(g => { map[g.name] = g.id; });
+                setGroundsMap(map);
+            } catch (err) {
+                console.error('Failed to load grounds:', err);
+            }
+        };
+        loadGrounds();
+    }, []);
 
     // Debounced search
     const handleSearchInput = (value: string) => {
@@ -55,7 +77,15 @@ export default function BookingsPage() {
         if (debouncedSearch) params.set('search', debouncedSearch);
         if (dateFrom) params.set('date_from', dateFrom);
         if (dateTo) params.set('date_to', dateTo);
-        if (selectedGrounds.length > 0) params.set('ground_id', selectedGrounds.join(','));
+
+        // Convert ground NAMES to UUIDs
+        if (selectedGrounds.length > 0) {
+            const uuids = selectedGrounds.map(name => groundsMap[name]).filter(Boolean);
+            if (uuids.length > 0) {
+                params.set('ground_id', uuids.join(','));
+            }
+        }
+
         if (selectedStatuses.length > 0) params.set('status', selectedStatuses.join(','));
         if (selectedPayment) params.set('payment_status', selectedPayment);
         params.set('page', String(page));
@@ -71,7 +101,7 @@ export default function BookingsPage() {
             setTotalPages(data.totalPages || 1);
         } catch { /* ignore */ }
         setIsLoading(false);
-    }, [debouncedSearch, dateFrom, dateTo, selectedGrounds, selectedStatuses, selectedPayment, page, adminSecret]);
+    }, [debouncedSearch, dateFrom, dateTo, selectedGrounds, selectedStatuses, selectedPayment, page, adminSecret, groundsMap]);
 
     useEffect(() => { fetchBookings(); }, [fetchBookings]);
 
@@ -120,6 +150,7 @@ export default function BookingsPage() {
 
     const activeQuickDate = (from: string, to: string) => dateFrom === from && dateTo === to;
     const totalRevenue = bookings.reduce((sum, b) => sum + Number(b.base_price || 0), 0);
+    const groundNames = grounds.map(g => g.name);
 
     return (
         <div>
@@ -156,7 +187,7 @@ export default function BookingsPage() {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12, alignItems: 'center' }}>
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>GROUND</span>
                     <button onClick={() => { setSelectedGrounds([]); setPage(1); }} style={pillBtn(selectedGrounds.length === 0)}>ALL</button>
-                    {GROUNDS.map(g => <button key={g} onClick={() => toggleGround(g)} style={pillBtn(selectedGrounds.includes(g))}>{g}</button>)}
+                    {groundNames.map(g => <button key={g} onClick={() => toggleGround(g)} style={pillBtn(selectedGrounds.includes(g))}>{g}</button>)}
 
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.3)', marginLeft: 16, marginRight: 4 }}>STATUS</span>
                     <button onClick={() => { setSelectedStatuses([]); setPage(1); }} style={pillBtn(selectedStatuses.length === 0)}>ALL</button>

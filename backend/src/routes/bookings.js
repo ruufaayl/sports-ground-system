@@ -208,8 +208,8 @@ router.get('/calendar', requireAdmin, async (req, res, next) => {
     }
 });
 
-// ═══ FIX 2: GET /api/bookings/slot-status ═══
-router.get('/slot-status', requireAdmin, async (req, res, next) => {
+// ═══ GET /api/bookings/slot-status ═══
+router.get('/slot-status', requireAdmin, async (req, res) => {
     try {
         const { ground_id, date } = req.query;
         if (!ground_id || !date) return res.status(400).json({ error: 'ground_id and date are required' });
@@ -227,8 +227,9 @@ router.get('/slot-status', requireAdmin, async (req, res, next) => {
         // Generate all 24 hourly slots
         const slots = [];
         for (let hour = 0; hour < 24; hour++) {
-            const startTime = pad(hour) + ':00';
-            const endTime = pad((hour + 1) % 24) + ':00';
+            const startTime = hour.toString().padStart(2, '0') + ':00';
+            const endHour = (hour + 1) % 24;
+            const endTime = endHour.toString().padStart(2, '0') + ':00';
             slots.push({
                 hour,
                 startTime,
@@ -236,23 +237,32 @@ router.get('/slot-status', requireAdmin, async (req, res, next) => {
                 status: 'available',
                 booking: null,
                 bookingContinues: false,
+                isContinuation: false,
             });
         }
 
-        // Mark booked slots
+        // Mark booked slots (handle midnight crossover)
         for (const b of (bookings || [])) {
-            const bStartH = parseInt(b.start_time.split(':')[0], 10);
-            const bEndH = parseInt(b.end_time.split(':')[0], 10);
+            const bookingStart = parseInt(b.start_time.split(':')[0], 10);
+            const bookingEnd = parseInt(b.end_time.split(':')[0], 10);
+
+            // Handle midnight crossover
+            let endAdjusted = bookingEnd;
+            if (bookingEnd <= bookingStart) endAdjusted = bookingEnd + 24;
+
             let isFirst = true;
-            for (let h = bStartH; h < bEndH; h++) {
-                if (slots[h]) {
-                    slots[h].status = 'booked';
+            for (let h = bookingStart; h < endAdjusted; h++) {
+                const hourIdx = h % 24;
+                if (slots[hourIdx]) {
+                    slots[hourIdx].status = 'booked';
                     if (isFirst) {
-                        slots[h].booking = b;
+                        slots[hourIdx].booking = b;
+                        slots[hourIdx].isContinuation = false;
                         isFirst = false;
                     } else {
-                        slots[h].bookingContinues = true;
-                        slots[h].booking = b;
+                        slots[hourIdx].bookingContinues = true;
+                        slots[hourIdx].isContinuation = true;
+                        slots[hourIdx].booking = b;
                     }
                 }
             }
@@ -260,7 +270,8 @@ router.get('/slot-status', requireAdmin, async (req, res, next) => {
 
         res.json({ slots, date, groundId: ground_id, bookings: bookings || [] });
     } catch (err) {
-        next(err);
+        console.error('slot-status error:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 

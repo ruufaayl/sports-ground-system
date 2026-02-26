@@ -101,11 +101,11 @@ export default function CalendarPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
                 <h1 style={{ fontFamily: 'var(--font-ui)', fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '0.06em', margin: 0 }}>CALENDAR</h1>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button onClick={() => setMonth(shiftMonth(month, -1))} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: '#fff', fontSize: 16, padding: '6px 12px', cursor: 'pointer' }}>←</button>
-                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 18, fontWeight: 700, color: '#fff', letterSpacing: '0.08em', minWidth: 200, textAlign: 'center' }}>
+                    <button onClick={() => setMonth(shiftMonth(month, -1))} style={{ background: 'transparent', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2, color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>←</button>
+                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '0.06em', minWidth: 260, textAlign: 'center' }}>
                         {monthLabel(month)}
                     </div>
-                    <button onClick={() => setMonth(shiftMonth(month, 1))} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: '#fff', fontSize: 16, padding: '6px 12px', cursor: 'pointer' }}>→</button>
+                    <button onClick={() => setMonth(shiftMonth(month, 1))} style={{ background: 'transparent', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2, color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>→</button>
                     <button onClick={() => setMonth(currentMonth())} style={{
                         background: month === currentMonth() ? '#8B1A2B' : 'transparent',
                         border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2,
@@ -120,7 +120,7 @@ export default function CalendarPage() {
                 {/* Day headers */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid rgba(139,26,43,0.2)' }}>
                     {DAYS_OF_WEEK.map(d => (
-                        <div key={d} style={{ padding: '10px 8px', fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textAlign: 'center', letterSpacing: '0.15em' }}>{d}</div>
+                        <div key={d} style={{ padding: '12px 8px', fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textAlign: 'center', letterSpacing: '0.2em', textTransform: 'uppercase' }}>{d}</div>
                     ))}
                 </div>
 
@@ -128,7 +128,7 @@ export default function CalendarPage() {
                 {weeks.map((week, wi) => (
                     <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: wi < weeks.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
                         {week.map((day, di) => {
-                            if (day === null) return <div key={di} style={{ minHeight: 100, background: 'rgba(0,0,0,0.1)' }} />;
+                            if (day === null) return <div key={di} style={{ minHeight: 110, background: 'rgba(0,0,0,0.1)' }} />;
 
                             const dateStr = `${month}-${pad2(day)}`;
                             const dayData = calendarData[dateStr] || { count: 0, bookings: [], revenue: 0 };
@@ -149,7 +149,7 @@ export default function CalendarPage() {
                                     onMouseEnter={e => { if (dayData.count > 0) setTooltip({ date: dateStr, data: dayData, x: e.clientX, y: e.clientY }); }}
                                     onMouseLeave={() => setTooltip(null)}
                                     style={{
-                                        minHeight: 100, padding: 8, cursor: 'pointer',
+                                        minHeight: 110, padding: 12, cursor: 'pointer',
                                         borderRight: di < 6 ? '1px solid rgba(255,255,255,0.03)' : 'none',
                                         opacity: isPast && !isToday ? 0.6 : 1,
                                         transition: 'all 0.15s',
@@ -161,10 +161,10 @@ export default function CalendarPage() {
                                     {/* Date number */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                                         <span style={{
-                                            fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 600,
+                                            fontFamily: 'var(--font-ui)', fontSize: 16, fontWeight: 700,
                                             color: isToday ? '#fff' : 'rgba(255,255,255,0.7)',
                                             background: isToday ? '#8B1A2B' : 'transparent',
-                                            borderRadius: '50%', width: isToday ? 28 : 'auto', height: isToday ? 28 : 'auto',
+                                            borderRadius: '50%', width: isToday ? 30 : 'auto', height: isToday ? 30 : 'auto',
                                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         }}>{day}</span>
                                     </div>
@@ -174,7 +174,7 @@ export default function CalendarPage() {
                                         <>
                                             <div style={{
                                                 background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)',
-                                                borderRadius: 8, padding: '1px 6px', fontSize: 9, fontWeight: 600,
+                                                borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600,
                                                 color: '#8B1A2B', fontFamily: 'var(--font-ui)', display: 'inline-block', marginBottom: 4,
                                             }}>{dayData.count} booking{dayData.count > 1 ? 's' : ''}</div>
 
@@ -191,7 +191,7 @@ export default function CalendarPage() {
                                             </div>
 
                                             {/* Revenue */}
-                                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, color: '#C9A84C', fontWeight: 600 }}>
+                                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: '#C9A84C', fontWeight: 500 }}>
                                                 PKR {fmt(dayData.revenue)}
                                             </div>
                                         </>
@@ -213,8 +213,8 @@ export default function CalendarPage() {
                 ].map(c => (
                     <div key={c.label} style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, padding: 16, position: 'relative', overflow: 'hidden' }}>
                         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: c.accent }} />
-                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>{c.label}</div>
-                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 18, fontWeight: 700, color: '#fff' }}>{c.value}</div>
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 500, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>{c.label}</div>
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 20, fontWeight: 700, color: '#fff' }}>{c.value}</div>
                     </div>
                 ))}
             </div>
