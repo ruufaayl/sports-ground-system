@@ -3,11 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import type { PricingRule } from '../../lib/types';
 import StepIndicator from '../components/StepIndicator';
 import { playSelect, playTick } from '../lib/sounds';
 
-// ── Fallback data (unchanged UUIDs) ──────────────────────────────────────────
+// ── Fallback data ────────────────────────────────────────────────────────────
 const FALLBACK_GROUNDS = [
     {
         id: 'fcc2caea-879c-47ff-b5ef-08216cc5a69c', name: 'G1', size: 'full', pricing_rules: [
@@ -43,28 +44,25 @@ const FALLBACK_GROUNDS = [
     },
     {
         id: 'dcb5a29f-cb46-431f-b259-9add8319f8df', name: 'G5', size: 'smaller', pricing_rules: [
-            { id: '', ground_id: '', day_type: 'weekday', slot_type: 'peak', price_per_hour: 2500 },
-            { id: '', ground_id: '', day_type: 'weekday', slot_type: 'offpeak', price_per_hour: 1800 },
-            { id: '', ground_id: '', day_type: 'weekend', slot_type: 'peak', price_per_hour: 3000 },
-            { id: '', ground_id: '', day_type: 'weekend', slot_type: 'offpeak', price_per_hour: 2000 },
+            { id: '', ground_id: '', day_type: 'weekday', slot_type: 'peak', price_per_hour: 2200 },
+            { id: '', ground_id: '', day_type: 'weekday', slot_type: 'offpeak', price_per_hour: 2000 },
+            { id: '', ground_id: '', day_type: 'weekend', slot_type: 'peak', price_per_hour: 2500 },
+            { id: '', ground_id: '', day_type: 'weekend', slot_type: 'offpeak', price_per_hour: 2200 },
         ] as PricingRule[]
     },
 ] as { id: string; name: string; size: string; pricing_rules: PricingRule[] }[];
 
-function getPrices(rules: PricingRule[]) {
-    const wdMin = Math.min(
-        rules.find(r => r.day_type === 'weekday' && r.slot_type === 'offpeak')?.price_per_hour ?? 9999,
-        rules.find(r => r.day_type === 'weekday' && r.slot_type === 'peak')?.price_per_hour ?? 9999,
-    );
-    const weMin = Math.min(
-        rules.find(r => r.day_type === 'weekend' && r.slot_type === 'offpeak')?.price_per_hour ?? 9999,
-        rules.find(r => r.day_type === 'weekend' && r.slot_type === 'peak')?.price_per_hour ?? 9999,
-    );
-    return { wdMin, weMin };
+function getRates(rules: PricingRule[]) {
+    return {
+        wdPeak: rules.find(r => r.day_type === 'weekday' && r.slot_type === 'peak')?.price_per_hour ?? 0,
+        wdOff: rules.find(r => r.day_type === 'weekday' && r.slot_type === 'offpeak')?.price_per_hour ?? 0,
+        wePeak: rules.find(r => r.day_type === 'weekend' && r.slot_type === 'peak')?.price_per_hour ?? 0,
+        weOff: rules.find(r => r.day_type === 'weekend' && r.slot_type === 'offpeak')?.price_per_hour ?? 0,
+    };
 }
 function fmt(n: number) { return n.toLocaleString('en-PK'); }
 
-// ── Pitch Card ─────────────────────────────────────────────────────────────────
+// ── Pitch Card ────────────────────────────────────────────────────────────────
 function PitchCard({
     ground, isSelected, isBlurred, onSelect, index,
 }: {
@@ -76,8 +74,9 @@ function PitchCard({
     const [tilt, setTilt] = useState({ x: 0, y: 0 });
     const [hovering, setHovering] = useState(false);
     const isFullSize = ground.size === 'full' || ground.size === 'Full Size';
-    const { wdMin, weMin } = getPrices(ground.pricing_rules);
-    const capacity = isFullSize ? 22 : 14;
+    const rates = getRates(ground.pricing_rules);
+    const format = isFullSize ? '6v6' : '5v5';
+    const capacity = isFullSize ? 12 : 10;
 
     const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         const card = cardRef.current; if (!card) return;
@@ -136,18 +135,18 @@ function PitchCard({
                 </svg>
 
                 {/* Ground name — painted on pitch */}
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 86, color: hovering ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.12)', letterSpacing: '0.03em', lineHeight: 1, userSelect: 'none', transition: 'color 0.3s ease', zIndex: 2 }}>
+                <div style={{ position: 'absolute', top: '42%', left: '50%', transform: 'translate(-50%, -50%)', fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 86, color: hovering ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.12)', letterSpacing: '0.03em', lineHeight: 1, userSelect: 'none', transition: 'color 0.3s ease', zIndex: 2 }}>
                     {ground.name}
                 </div>
 
                 {/* Top-left label */}
-                <div style={{ position: 'absolute', top: 18, left: 18, fontFamily: "'Montserrat', sans-serif", fontWeight: 600, fontSize: 20, color: 'rgba(255,255,255,0.9)', letterSpacing: '0.08em', zIndex: 5, textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
+                <div style={{ position: 'absolute', top: 18, left: 18, fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 20, color: 'rgba(255,255,255,0.9)', letterSpacing: '0.08em', zIndex: 5, textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
                     {ground.name}
                 </div>
 
-                {/* ARTIFICIAL TURF badge top-right */}
+                {/* ARTIFICIAL TURF badge */}
                 <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(45,90,39,0.85)', border: '1px solid rgba(100,180,80,0.4)', borderRadius: 4, padding: '3px 8px', zIndex: 5 }}>
-                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, color: 'rgba(150,220,120,0.9)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>ARTIFICIAL TURF</div>
+                    <div style={{ fontFamily: "var(--font-ui)", fontSize: 8, fontWeight: 700, color: 'rgba(150,220,120,0.9)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>ARTIFICIAL TURF</div>
                 </div>
 
                 {/* Stadium lights on hover */}
@@ -155,25 +154,39 @@ function PitchCard({
                     <div key={j} style={{ position: 'absolute', width: 9, height: 9, borderRadius: '50%', background: '#C9A84C', boxShadow: '0 0 14px rgba(201,168,76,0.9), 0 0 28px rgba(201,168,76,0.5)', zIndex: 6, animation: 'gold-pulse 1s ease-in-out infinite', ...pos }} />
                 ))}
 
-                {/* Hover pricing */}
-                <motion.div
-                    animate={{ opacity: hovering ? 1 : 0, y: hovering ? 0 : 16 }}
-                    transition={{ duration: 0.22 }}
-                    style={{ position: 'absolute', bottom: 58, left: 0, right: 0, textAlign: 'center', zIndex: 6, pointerEvents: 'none' }}
-                >
-                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 16, fontWeight: 600, color: '#C9A84C', textShadow: '0 0 12px rgba(201,168,76,0.7)' }}>WEEKDAY FROM PKR {fmt(wdMin)}</div>
-                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 14, fontWeight: 500, color: 'rgba(201,168,76,0.75)', marginTop: 2 }}>WEEKEND FROM PKR {fmt(weMin)}</div>
-                </motion.div>
-
-                {/* Bottom info bar */}
+                {/* Bottom info: format + capacity */}
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 14px 14px', background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)', zIndex: 5 }}>
-                    {/* Capacity */}
-                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 13, fontWeight: 600, color: '#C9A84C', letterSpacing: '0.06em', marginBottom: 6 }}>
-                        CAPACITY: {capacity} PLAYERS
+                    <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, fontWeight: 800, color: '#C9A84C', letterSpacing: '0.02em' }}>
+                        {format}
                     </div>
-                    {/* Size pill */}
-                    <div style={{ display: 'inline-block', background: isFullSize ? 'rgba(201,168,76,0.18)' : 'rgba(255,255,255,0.12)', border: `1px solid ${isFullSize ? 'rgba(201,168,76,0.45)' : 'rgba(255,255,255,0.25)'}`, borderRadius: 999, padding: '4px 12px', fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 600, color: isFullSize ? '#C9A84C' : 'rgba(255,255,255,0.75)', letterSpacing: '0.1em' }}>
-                        {isFullSize ? 'FULL SIZE • 100×65m' : 'STANDARD • 80×50m'}
+                    <div style={{ fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 400, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em' }}>
+                        CAPACITY {capacity}
+                    </div>
+                </div>
+
+                {/* Hover rates panel — slides up from bottom */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: 0, left: 0, right: 0,
+                    background: '#1a0408',
+                    padding: '16px 14px',
+                    zIndex: 8,
+                    transform: hovering ? 'translateY(0)' : 'translateY(100%)',
+                    transition: 'transform 0.3s ease',
+                }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        {/* Weekday */}
+                        <div>
+                            <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: '#C9A84C', marginBottom: 6 }}>WEEKDAY</div>
+                            <div style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: '#fff', marginBottom: 3 }}>Peak PKR {fmt(rates.wdPeak)}/hr</div>
+                            <div style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Off-Peak PKR {fmt(rates.wdOff)}/hr</div>
+                        </div>
+                        {/* Weekend */}
+                        <div>
+                            <div style={{ fontFamily: "var(--font-ui)", fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', color: '#C9A84C', marginBottom: 6 }}>WEEKEND</div>
+                            <div style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: '#fff', marginBottom: 3 }}>Peak PKR {fmt(rates.wePeak)}/hr</div>
+                            <div style={{ fontFamily: "var(--font-ui)", fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>Off-Peak PKR {fmt(rates.weOff)}/hr</div>
+                        </div>
                     </div>
                 </div>
 
@@ -184,7 +197,7 @@ function PitchCard({
                     { bottom: 6, left: 6, borderBottom: '2px solid #C9A84C', borderLeft: '2px solid #C9A84C' },
                     { bottom: 6, right: 6, borderBottom: '2px solid #C9A84C', borderRight: '2px solid #C9A84C' },
                 ].map((s, j) => (
-                    <div key={j} style={{ position: 'absolute', width: 16, height: 16, zIndex: 7, ...s }} />
+                    <div key={j} style={{ position: 'absolute', width: 16, height: 16, zIndex: 9, ...s }} />
                 ))}
             </div>
         </motion.div>
@@ -194,7 +207,7 @@ function PitchCard({
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function BookPage() {
     const router = useRouter();
-    const [grounds, setGrounds] = useState(FALLBACK_GROUNDS as typeof FALLBACK_GROUNDS);
+    const [grounds, setGrounds] = useState(FALLBACK_GROUNDS);
     const [loading, setLoading] = useState(true);
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -223,15 +236,14 @@ export default function BookPage() {
             <div style={{ maxWidth: 960, margin: '0 auto', position: 'relative', zIndex: 1 }}>
                 <StepIndicator current={1} />
 
-                {/* Header */}
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', marginBottom: 48 }}>
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-                        <img src="/logo.png" alt="ECF" style={{ width: 52, height: 'auto' }} />
+                        <Image src="/logo.png" alt="ECF Logo" width={52} height={52} priority />
                     </div>
-                    <h1 style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 'clamp(28px, 5vw, 48px)', color: '#fff', letterSpacing: '0.06em', marginBottom: 8 }}>
+                    <h1 style={{ fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: 'clamp(28px, 5vw, 48px)', color: '#fff', letterSpacing: '0.06em', marginBottom: 8 }}>
                         SELECT YOUR GROUND
                     </h1>
-                    <p style={{ fontFamily: "'Inter', sans-serif", color: 'rgba(255,255,255,0.55)', fontSize: 14, lineHeight: 1.6 }}>
+                    <p style={{ fontFamily: "var(--font-body)", color: 'rgba(255,255,255,0.55)', fontSize: 14, lineHeight: 1.6 }}>
                         {loading ? 'Loading grounds...' : 'Click a pitch to select'}
                     </p>
                 </motion.div>
@@ -244,27 +256,20 @@ export default function BookPage() {
                 </div>
 
                 {/* Row 2 */}
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap', marginBottom: 40 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap', marginBottom: 48 }}>
                     {grounds.slice(3).map((g, i) => (
                         <PitchCard key={g.id} ground={g} isSelected={selectedId === g.id} isBlurred={selectedId !== null && selectedId !== g.id} onSelect={() => handleSelect(g)} index={i + 3} />
                     ))}
                 </div>
 
-                {/* Pricing hint */}
-                <div style={{ textAlign: 'center', fontFamily: "'Montserrat', sans-serif", fontWeight: 500, color: 'rgba(255,255,255,0.55)', fontSize: 15, marginBottom: 32 }}>
-                    WEEKDAY: PKR 2,500 — 3,500/HR &nbsp;•&nbsp; WEEKEND: PKR 2,800 — 4,200/HR
-                </div>
-
-                {/* Continue */}
+                {/* Continue — futuristic button */}
                 <AnimatePresence>
                     {selectedId && (
                         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} style={{ display: 'flex', justifyContent: 'center' }}>
-                            <motion.button onClick={handleContinue} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}
-                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '16px 56px', background: '#8B1A2B', border: '1px solid #C9A84C', borderRadius: 999, color: '#fff', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: '0.1em', cursor: 'none', boxShadow: '0 0 30px rgba(139,26,43,0.4)', transition: 'background 0.3s, color 0.3s' }}
-                                onMouseEnter={e => { e.currentTarget.style.background = '#C9A84C'; e.currentTarget.style.color = '#6B1422'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = '#8B1A2B'; e.currentTarget.style.color = '#fff'; }}>
-                                CONTINUE →
-                            </motion.button>
+                            <button onClick={handleContinue} className="btn-futuristic" style={{ width: 260 }}>
+                                CONTINUE
+                                <span className="btn-arrow">→</span>
+                            </button>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -273,5 +278,4 @@ export default function BookPage() {
     );
 }
 
-// Re-export StepIndicator for legacy page imports
 export { default as StepIndicator } from '../components/StepIndicator';

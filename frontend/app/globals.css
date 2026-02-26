@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@400;500;600;700;800&display=swap');
+/* Fonts loaded via next/font/google in layout.tsx */
 
 @tailwind base;
 @tailwind components;
@@ -24,16 +24,11 @@
   --transition: 0.3s ease;
 
   /* ─── Font families ─── */
-  --font-hero: 'Bebas Neue', sans-serif;
-  /* page mega-titles only, 80px+ */
-  --font-heading: 'Montserrat', sans-serif;
-  /* section headers, 24-48px */
-  --font-ui: 'Montserrat', sans-serif;
-  /* buttons, nav, badges, 12-16px */
-  --font-body: 'Inter', sans-serif;
-  /* paragraphs, descriptions, 14-16px */
-  --font-numbers: 'Montserrat', sans-serif;
-  /* prices, times, stats */
+  --font-hero: var(--font-bebas), 'Bebas Neue', sans-serif;
+  --font-heading: var(--font-roboto), 'Roboto Flex', sans-serif;
+  --font-ui: var(--font-roboto), 'Roboto Flex', sans-serif;
+  --font-body: var(--font-roboto), 'Roboto Flex', sans-serif;
+  --font-numbers: var(--font-roboto), 'Roboto Flex', sans-serif;
 }
 
 /* ─── Reset ──────────────────────────────────────────────────────────────── */
@@ -519,4 +514,106 @@ body {
   66% {
     transform: translate(-15px, 15px) scale(0.95);
   }
+}
+
+/* ─── Futuristic Button ──────────────────────────────────────────────────── */
+.btn-futuristic {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 56px;
+  padding: 0 40px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 2px;
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: none;
+  overflow: hidden;
+  transition: border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.4s ease;
+  z-index: 1;
+  white-space: nowrap;
+}
+
+.btn-futuristic::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #8B1A2B;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: -1;
+}
+
+.btn-futuristic:hover::before {
+  transform: scaleX(1);
+}
+
+.btn-futuristic:hover {
+  border-color: #C9A84C;
+  box-shadow: 0 0 30px rgba(139, 26, 43, 0.5);
+}
+
+.btn-futuristic .btn-arrow {
+  transition: transform 0.4s ease;
+}
+
+.btn-futuristic:hover .btn-arrow {
+  transform: translateX(4px);
+}
+
+.btn-futuristic:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-futuristic:disabled::before {
+  display: none;
+}
+
+/* Gold variant */
+.btn-futuristic-gold {
+  border-color: rgba(201, 168, 76, 0.5);
+}
+
+.btn-futuristic-gold::before {
+  background: #C9A84C;
+}
+
+.btn-futuristic-gold:hover {
+  border-color: #C9A84C;
+  color: #1a0408;
+  box-shadow: 0 0 30px rgba(201, 168, 76, 0.5);
+}
+
+/* ─── Floating label focus underline ─────────────────────────────────────── */
+.float-field-v2 {
+  position: relative;
+  margin-bottom: 32px;
+}
+
+.float-field-v2 .ff-underline {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: #8B1A2B;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.float-field-v2 input:focus~.ff-underline,
+.float-field-v2 textarea:focus~.ff-underline {
+  transform: scaleX(1);
 }

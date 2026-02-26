@@ -7,9 +7,10 @@ interface FifaCardProps {
     imagePath: string;
     index: number;
     style?: React.CSSProperties;
+    loadingStrategy?: 'eager' | 'lazy';
 }
 
-export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
+export default function FifaCard({ imagePath, index, style, loadingStrategy = 'lazy' }: FifaCardProps) {
     const cardRef = useRef<HTMLDivElement>(null);
     const [tilt, setTilt] = useState({ x: 0, y: 0 });
     const [isHovering, setIsHovering] = useState(false);
@@ -98,7 +99,8 @@ export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
                         alt={`Player ${index + 1}`}
                         width={180}
                         height={250}
-                        loading="lazy"
+                        loading={loadingStrategy}
+                        quality={75}
                         style={{
                             width: '100%',
                             height: '100%',
@@ -142,7 +144,7 @@ export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
                     zIndex: 2,
                 }}>
                     <div style={{
-                        fontFamily: "'Montserrat', sans-serif",
+                        fontFamily: "var(--font-ui)",
                         fontSize: 16,
                         fontWeight: 700,
                         color: '#C9A84C',
@@ -155,7 +157,7 @@ export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
                         background: 'rgba(201,168,76,0.4)',
                     }} />
                     <div style={{
-                        fontFamily: "'Montserrat', sans-serif",
+                        fontFamily: "var(--font-ui)",
                         fontSize: 12,
                         fontWeight: 500,
                         color: 'rgba(255,255,255,0.6)',

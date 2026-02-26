@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
-const PARTICLE_COUNT = 60;
+const PARTICLE_COUNT = 50;
 
 interface Particle {
     x: number; y: number;

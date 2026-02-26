@@ -167,11 +167,11 @@ function HourWheel({ selectedIndex, onSelect }: { selectedIndex: number; onSelec
                     return (
                         <div key={i} style={{
                             height: ITEM_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontFamily: "'Montserrat', sans-serif",
-                            fontSize: dist === 0 ? 40 : dist === 1 ? 26 : 20,
+                            fontFamily: "var(--font-heading)",
+                            fontSize: dist === 0 ? 48 : dist === 1 ? 32 : 22,
                             fontWeight: dist === 0 ? 700 : 400,
                             color: dist === 0 ? '#fff' : '#888',
-                            opacity: dist === 0 ? 1 : dist === 1 ? 0.55 : 0.3,
+                            opacity: dist === 0 ? 1 : dist === 1 ? 0.6 : 0.35,
                             transform: `scale(${dist === 0 ? 1 : dist === 1 ? 0.85 : 0.7})`,
                             transition: 'font-size 0.1s, color 0.1s, opacity 0.1s',
                             userSelect: 'none',
@@ -216,14 +216,14 @@ function DurationGrid({ value, onChange }: { value: number; onChange: (v: number
                         }}
                     >
                         <div style={{
-                            fontFamily: "'Montserrat', sans-serif",
+                            fontFamily: "var(--font-ui)",
                             fontSize: 28,
                             fontWeight: 700,
                             color: active ? '#fff' : 'rgba(255,255,255,0.8)',
                             lineHeight: 1,
                         }}>{d}</div>
                         <div style={{
-                            fontFamily: "'Montserrat', sans-serif",
+                            fontFamily: "var(--font-ui)",
                             fontSize: 10,
                             fontWeight: 500,
                             color: active ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)',
@@ -317,17 +317,17 @@ function ScheduleInner() {
                                 background: 'rgba(139,26,43,0.15)', border: '1px solid rgba(139,26,43,0.4)',
                                 borderRadius: 999, padding: '6px 20px', marginBottom: 16,
                             }}>
-                                <span style={{ fontFamily: "'Montserrat', sans-serif", color: '#C9A84C', letterSpacing: '0.1em', fontSize: 15, fontWeight: 600 }}>{groundName}</span>
+                                <span style={{ fontFamily: "var(--font-ui)", color: '#C9A84C', letterSpacing: '0.1em', fontSize: 15, fontWeight: 600 }}>{groundName}</span>
                             </div>
                         )}
-                        <h1 style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 'clamp(28px, 5vw, 44px)', fontWeight: 700, color: '#fff', letterSpacing: '0.05em' }}>
+                        <h1 style={{ fontFamily: "var(--font-ui)", fontSize: 'clamp(28px, 5vw, 44px)', fontWeight: 700, color: '#fff', letterSpacing: '0.05em' }}>
                             SELECT YOUR SLOT
                         </h1>
                     </div>
 
                     {/* Date selector */}
                     <div className="card-dark" style={{ padding: 20, marginBottom: 20 }}>
-                        <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', marginBottom: 14, textTransform: 'uppercase' }}>
+                        <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', marginBottom: 14, textTransform: 'uppercase' }}>
                             Select Date
                         </div>
                         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
@@ -345,11 +345,11 @@ function ScheduleInner() {
                                             transform: isSel ? 'scale(1.08)' : 'scale(1)',
                                         }}>
                                         {i === 0 && (
-                                            <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', background: '#C9A84C', color: '#0D0608', fontSize: 8, fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.05em', borderRadius: 3, padding: '1px 5px', whiteSpace: 'nowrap' }}>TODAY</div>
+                                            <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', background: '#C9A84C', color: '#0D0608', fontSize: 8, fontFamily: "var(--font-ui)", fontWeight: 700, letterSpacing: '0.05em', borderRadius: 3, padding: '1px 5px', whiteSpace: 'nowrap' }}>TODAY</div>
                                         )}
-                                        <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 2, fontFamily: "'Inter', sans-serif" }}>{d.day}</div>
-                                        <div style={{ fontSize: 22, fontFamily: "'Montserrat', sans-serif", fontWeight: 700, lineHeight: 1 }}>{d.num}</div>
-                                        <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2, fontFamily: "'Inter', sans-serif" }}>{d.month}</div>
+                                        <div style={{ fontSize: 14, opacity: 0.7, marginBottom: 2, fontFamily: "var(--font-ui)", fontWeight: 500 }}>{d.day}</div>
+                                        <div style={{ fontSize: 36, fontFamily: "var(--font-heading)", fontWeight: 700, lineHeight: 1 }}>{d.num}</div>
+                                        <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2, fontFamily: "var(--font-ui)", fontWeight: 400 }}>{d.month}</div>
                                     </button>
                                 );
                             })}
@@ -358,7 +358,7 @@ function ScheduleInner() {
 
                     {/* Hour roulette + AM/PM */}
                     <div className="card-dark" style={{ padding: '28px 24px', marginBottom: 20 }}>
-                        <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', marginBottom: 20, textTransform: 'uppercase' }}>
+                        <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', marginBottom: 20, textTransform: 'uppercase' }}>
                             Start Hour
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
@@ -375,7 +375,7 @@ function ScheduleInner() {
                                     return (
                                         <button key={label} onClick={() => { setIsPM(label === 'PM'); playTick(); }}
                                             style={{
-                                                fontFamily: "'Montserrat', sans-serif", fontSize: 13, fontWeight: 700,
+                                                fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 700,
                                                 letterSpacing: '0.08em', padding: '10px 18px', borderRadius: 999,
                                                 border: 'none', background: active ? '#8B1A2B' : 'transparent',
                                                 color: active ? '#fff' : '#666', cursor: 'none', transition: 'all 0.2s',
@@ -389,7 +389,7 @@ function ScheduleInner() {
 
                     {/* Duration grid */}
                     <div className="card-dark" style={{ padding: '24px', marginBottom: 20 }}>
-                        <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', marginBottom: 16, textTransform: 'uppercase' }}>
+                        <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', marginBottom: 16, textTransform: 'uppercase' }}>
                             Duration
                         </div>
                         <DurationGrid value={duration} onChange={setDuration} />
@@ -411,7 +411,7 @@ function ScheduleInner() {
                         }}
                     >
                         <div style={{
-                            fontFamily: "'Montserrat', sans-serif",
+                            fontFamily: "var(--font-ui)",
                             fontSize: 'clamp(24px, 6vw, 36px)',
                             fontWeight: 700,
                             background: 'linear-gradient(90deg, #8B1A2B, #ffffff)',
@@ -423,7 +423,7 @@ function ScheduleInner() {
                         }}>
                             {startDisplay} → {endDisplay}
                         </div>
-                        <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 16, fontWeight: 600, color: '#C9A84C', letterSpacing: '0.1em', marginTop: 6 }}>
+                        <div style={{ fontFamily: "var(--font-ui)", fontSize: 16, fontWeight: 600, color: '#C9A84C', letterSpacing: '0.1em', marginTop: 6 }}>
                             {duration} {duration === 1 ? 'HOUR' : 'HOURS'}
                         </div>
                     </motion.div>
@@ -435,7 +435,7 @@ function ScheduleInner() {
                         transition: 'border-color 0.3s ease',
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: checking || available !== null ? 16 : 0 }}>
-                            <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+                            <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
                                 Availability & Price
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -444,7 +444,7 @@ function ScheduleInner() {
                                     background: checking ? 'rgba(201,168,76,1)' : available === true ? '#2ecc71' : available === false ? '#e74c3c' : 'rgba(255,255,255,0.3)',
                                     animation: checking ? 'pulse-crimson 1s infinite' : 'none',
                                 }} />
-                                <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', color: available === true ? '#2ecc71' : available === false ? '#e74c3c' : 'rgba(255,255,255,0.55)' }}>
+                                <span style={{ fontFamily: "var(--font-ui)", fontSize: 12, fontWeight: 600, letterSpacing: '0.05em', color: available === true ? '#2ecc71' : available === false ? '#e74c3c' : 'rgba(255,255,255,0.55)' }}>
                                     {checking ? 'CHECKING...' : available === true ? 'AVAILABLE ✓' : available === false ? 'SLOT TAKEN ✗' : checkError || 'SELECT A SLOT'}
                                 </span>
                                 {checking && (
@@ -466,26 +466,26 @@ function ScheduleInner() {
                                         { label: 'Advance (30%)', value: `PKR ${fmt(price.advanceAmount)}`, gold: true },
                                     ].map(({ label, value, gold }) => (
                                         <div key={label} style={{ padding: 12, borderBottom: '1px solid rgba(139,26,43,0.1)' }}>
-                                            <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{label}</div>
-                                            <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 20, fontWeight: 700, color: gold ? '#C9A84C' : '#fff', letterSpacing: '0.02em' }}>{value}</div>
+                                            <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{label}</div>
+                                            <div style={{ fontFamily: "var(--font-ui)", fontSize: 20, fontWeight: 700, color: gold ? '#C9A84C' : '#fff', letterSpacing: '0.02em' }}>{value}</div>
                                         </div>
                                     ))}
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px' }}>
-                                    <span style={{ fontFamily: "'Inter', sans-serif", color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>At ground (70%)</span>
-                                    <span style={{ fontFamily: "'Montserrat', sans-serif", color: 'rgba(255,255,255,0.8)', fontSize: 18, fontWeight: 600 }}>PKR {fmt(price.remainingAmount)}</span>
+                                    <span style={{ fontFamily: "var(--font-body)", color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>At ground (70%)</span>
+                                    <span style={{ fontFamily: "var(--font-ui)", color: 'rgba(255,255,255,0.8)', fontSize: 18, fontWeight: 600 }}>PKR {fmt(price.remainingAmount)}</span>
                                 </div>
-                                <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, fontFamily: "'Inter', sans-serif", padding: '0 12px' }}>{price.dayType} · {price.slotType} pricing</div>
+                                <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, fontFamily: "var(--font-body)", padding: '0 12px' }}>{price.dayType} · {price.slotType} pricing</div>
                             </motion.div>
                         )}
                         {!checking && available === false && (
-                            <div style={{ color: '#e74c3c', fontSize: 14, fontFamily: "'Inter', sans-serif" }}>This slot is taken. Please choose a different date or time.</div>
+                            <div style={{ color: '#e74c3c', fontSize: 14, fontFamily: "var(--font-body)" }}>This slot is taken. Please choose a different date or time.</div>
                         )}
                         {!checking && available === null && !checkError && (
-                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, fontFamily: "'Inter', sans-serif" }}>Select date, time and duration above.</div>
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, fontFamily: "var(--font-body)" }}>Select date, time and duration above.</div>
                         )}
                         {!checking && checkError && available === null && (
-                            <div style={{ color: '#ff8844', fontSize: 14, fontFamily: "'Inter', sans-serif" }}>{checkError}</div>
+                            <div style={{ color: '#ff8844', fontSize: 14, fontFamily: "var(--font-body)" }}>{checkError}</div>
                         )}
                     </div>
 
@@ -494,14 +494,14 @@ function ScheduleInner() {
                         {canContinue && (
                             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} transition={{ type: 'spring', stiffness: 300, damping: 24 }}>
                                 <motion.button onClick={handleContinue} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                                    style={{ width: '100%', padding: '18px', background: '#8B1A2B', border: '1px solid #C9A84C', borderRadius: 999, color: '#fff', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: '0.1em', cursor: 'none', boxShadow: '0 0 30px rgba(139,26,43,0.4)', transition: 'background 0.3s ease' }}>
+                                    style={{ width: '100%', padding: '18px', background: '#8B1A2B', border: '1px solid #C9A84C', borderRadius: 999, color: '#fff', fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 16, letterSpacing: '0.1em', cursor: 'none', boxShadow: '0 0 30px rgba(139,26,43,0.4)', transition: 'background 0.3s ease' }}>
                                     CONTINUE →
                                 </motion.button>
                             </motion.div>
                         )}
                     </AnimatePresence>
                     {!canContinue && !checking && (
-                        <button disabled style={{ width: '100%', padding: '18px', background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.2)', borderRadius: 999, color: 'rgba(255,255,255,0.25)', fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: '0.1em', cursor: 'not-allowed' }}>
+                        <button disabled style={{ width: '100%', padding: '18px', background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.2)', borderRadius: 999, color: 'rgba(255,255,255,0.25)', fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 16, letterSpacing: '0.1em', cursor: 'not-allowed' }}>
                             CONTINUE →
                         </button>
                     )}
@@ -514,7 +514,7 @@ function ScheduleInner() {
 export default function SchedulePage() {
     return (
         <Suspense fallback={
-            <div style={{ background: '#0D0608', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8B1A2B', fontFamily: "'Montserrat', sans-serif", fontSize: 24, letterSpacing: '0.2em' }}>
+            <div style={{ background: '#0D0608', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8B1A2B', fontFamily: "var(--font-ui)", fontSize: 24, letterSpacing: '0.2em' }}>
                 LOADING...
             </div>
         }>

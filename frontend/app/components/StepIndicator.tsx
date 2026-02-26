@@ -33,7 +33,7 @@ export default function StepIndicator({ current }: StepIndicatorProps) {
                                         ? '1px solid rgba(139,26,43,0.6)'
                                         : '1px solid rgba(255,255,255,0.12)',
                                 color: isActive ? '#fff' : isDone ? '#C9A84C' : 'rgba(255,255,255,0.3)',
-                                fontFamily: "'Montserrat', sans-serif",
+                                fontFamily: "var(--font-ui)",
                                 fontWeight: 700,
                                 fontSize: 18,
                                 boxShadow: isActive
@@ -44,7 +44,7 @@ export default function StepIndicator({ current }: StepIndicatorProps) {
                             </div>
                             {/* Label */}
                             <div style={{
-                                fontFamily: "'Montserrat', sans-serif",
+                                fontFamily: "var(--font-ui)",
                                 fontWeight: 600,
                                 fontSize: 12,
                                 letterSpacing: '0.08em',

@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import FifaCard from './components/FifaCard';
-import { playSelect, setSoundEnabled, isSoundEnabled } from './lib/sounds';
+import { playSelect, setSoundEnabled } from './lib/sounds';
 
 // ── Field lines canvas ────────────────────────────────────────────────────────
 function FieldLines() {
@@ -38,7 +38,7 @@ function FieldLines() {
   return <canvas ref={ref} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1 }} />;
 }
 
-// ── Player Cards Showcase (4 cards only) ──────────────────────────────────────
+// ── Player Cards Showcase (6 cards, lazy loaded) ──────────────────────────────
 const TOTAL_PLAYERS = 32;
 const POSITIONS: {
   top?: string; bottom?: string; left?: string; right?: string;
@@ -48,12 +48,14 @@ const POSITIONS: {
     { top: '5%', left: '18%', rotate: '-5deg', scale: 0.9, floatDuration: '4.5s', floatDelay: '0.5s' },
     { top: '10%', right: '3%', rotate: '15deg', scale: 0.85, floatDuration: '3.2s', floatDelay: '1s' },
     { top: '5%', right: '18%', rotate: '5deg', scale: 0.9, floatDuration: '5s', floatDelay: '0.8s' },
+    { bottom: '12%', left: '5%', rotate: '-10deg', scale: 0.8, floatDuration: '4.2s', floatDelay: '0.3s' },
+    { bottom: '12%', right: '5%', rotate: '10deg', scale: 0.8, floatDuration: '3.6s', floatDelay: '1.2s' },
   ];
 
-function pickFour(): number[] {
+function pickSix(): number[] {
   const pool = Array.from({ length: TOTAL_PLAYERS }, (_, i) => i + 1);
   const picked: number[] = [];
-  while (picked.length < 4) {
+  while (picked.length < 6) {
     const idx = Math.floor(Math.random() * pool.length);
     picked.push(pool.splice(idx, 1)[0]);
   }
@@ -66,14 +68,14 @@ function PlayerCardsShowcase() {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    setPlayerNums(pickFour());
+    setPlayerNums(pickSix());
     const interval = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
-        setPlayerNums(pickFour());
+        setPlayerNums(pickSix());
         setVisible(true);
       }, 600);
-    }, 60000); // 60 seconds instead of 30
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -112,6 +114,7 @@ function PlayerCardsShowcase() {
               <FifaCard
                 imagePath={`/players/player (${num}).png`}
                 index={num - 1}
+                loadingStrategy={i < 2 ? 'eager' : 'lazy'}
               />
             </div>
           </div>
@@ -149,10 +152,8 @@ export default function HomePage() {
         justifyContent: 'center',
       }}
     >
-      {/* Field lines */}
       <FieldLines />
 
-      {/* Radial center glow */}
       <div style={{
         position: 'fixed', top: '30%', left: '50%',
         transform: 'translate(-50%, -50%)',
@@ -161,10 +162,8 @@ export default function HomePage() {
         pointerEvents: 'none', zIndex: 2,
       }} />
 
-      {/* FIFA player cards around the page */}
       <PlayerCardsShowcase />
 
-      {/* Sound toggle */}
       <button
         onClick={toggleSound}
         style={{
@@ -183,39 +182,29 @@ export default function HomePage() {
       {/* ═══ Hero content ═══ */}
       <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '40px 20px' }}>
 
-        {/* ── REAL LOGO IMAGE ── */}
+        {/* Logo — priority since above the fold */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, type: 'spring', stiffness: 120 }}
           style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}
         >
-          <img
+          <Image
             src="/logo.png"
-            alt="The Executive Champions Field"
+            alt="ECF Logo"
+            width={140}
+            height={140}
+            priority
             style={{
-              width: 140,
-              height: 'auto',
               animation: 'spin-slow 20s linear infinite',
               cursor: 'none',
               filter: 'drop-shadow(0 4px 20px rgba(139,26,43,0.4))',
-              transition: 'filter 0.3s ease',
               willChange: 'transform',
-            }}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget;
-              el.style.animation = 'spin-slow 3s linear infinite';
-              el.style.filter = 'drop-shadow(0 0 30px rgba(139,26,43,0.8)) drop-shadow(0 0 20px rgba(201,168,76,0.5))';
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget;
-              el.style.animation = 'spin-slow 20s linear infinite';
-              el.style.filter = 'drop-shadow(0 4px 20px rgba(139,26,43,0.4))';
             }}
           />
         </motion.div>
 
-        {/* ── Heading line 1: THE EXECUTIVE ── */}
+        {/* Heading line 1: THE EXECUTIVE */}
         <div style={{ overflow: 'hidden', marginBottom: 4 }}>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '0.01em' }}>
             {LINE1.map((char, i) => (
@@ -225,7 +214,7 @@ export default function HomePage() {
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.6, delay: 0.5 + i * 0.04, ease: [0.22, 1, 0.36, 1] }}
                 style={{
-                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontFamily: "var(--font-hero)",
                   fontSize: 'clamp(52px, 10vw, 120px)',
                   color: '#FFFFFF',
                   letterSpacing: '0.1em',
@@ -241,7 +230,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── Heading line 2: CHAMPIONS FIELD ── */}
+        {/* Heading line 2: CHAMPIONS FIELD */}
         <div style={{ overflow: 'hidden', marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '0.01em' }}>
             {LINE2.map((char, i) => (
@@ -251,7 +240,7 @@ export default function HomePage() {
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.6, delay: 1.2 + i * 0.04, ease: [0.22, 1, 0.36, 1] }}
                 style={{
-                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontFamily: "var(--font-hero)",
                   fontSize: 'clamp(52px, 10vw, 120px)',
                   color: '#8B1A2B',
                   letterSpacing: '0.1em',
@@ -267,13 +256,13 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── Tagline ── */}
+        {/* Tagline */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 2.2, duration: 1 }}
           style={{
-            fontFamily: "'Montserrat', sans-serif",
+            fontFamily: "var(--font-ui)",
             fontSize: 14,
             fontWeight: 500,
             letterSpacing: '0.25em',
@@ -285,49 +274,21 @@ export default function HomePage() {
           5 Premium Grounds &nbsp;•&nbsp; Karachi &nbsp;•&nbsp; 24/7 Open
         </motion.p>
 
-        {/* ── BOOK NOW Button ── */}
+        {/* BOOK YOUR GROUND — futuristic button */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 2.4, duration: 0.6, type: 'spring' }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 2.4, duration: 0.6 }}
+          style={{ marginBottom: 56 }}
         >
-          <motion.button
+          <button
             onClick={handleBook}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 220,
-              height: 60,
-              background: '#8B1A2B',
-              border: '2px solid #C9A84C',
-              borderRadius: 999,
-              color: '#fff',
-              fontFamily: "'Montserrat', sans-serif",
-              fontWeight: 700,
-              fontSize: 16,
-              letterSpacing: '0.15em',
-              cursor: 'none',
-              boxShadow: '0 0 40px rgba(139,26,43,0.6)',
-              animation: 'pulse-crimson 3s ease-in-out infinite',
-              willChange: 'transform',
-              textTransform: 'uppercase',
-              transition: 'background 0.3s ease, color 0.3s ease, box-shadow 0.3s ease',
-              marginBottom: 56,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#C9A84C';
-              e.currentTarget.style.color = '#6B1422';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#8B1A2B';
-              e.currentTarget.style.color = '#fff';
-            }}
+            className="btn-futuristic"
+            style={{ width: 260 }}
           >
             BOOK YOUR GROUND
-          </motion.button>
+            <span className="btn-arrow">→</span>
+          </button>
         </motion.div>
 
         {/* Scroll indicator */}
@@ -347,7 +308,7 @@ export default function HomePage() {
         </motion.div>
       </div>
 
-      {/* ─── Bottom marquee strip ─── */}
+      {/* Bottom marquee strip */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20,
         background: 'rgba(13,6,8,0.92)',
@@ -372,7 +333,7 @@ export default function HomePage() {
             '★ 24/7 OPEN', '★ PKR 2000-4200/HR', '★ BOOK NOW',
           ].map((item, i) => (
             <span key={i} style={{
-              fontFamily: "'Montserrat', sans-serif",
+              fontFamily: "var(--font-ui)",
               fontSize: 15,
               fontWeight: 600,
               letterSpacing: '0.08em',
@@ -385,7 +346,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Mobile hide style */}
       <style>{`
         @media (max-width: 768px) { .hide-mobile { display: none !important; } }
         @keyframes float-card-0 { from { transform: translateY(0); } to { transform: translateY(-12px); } }
