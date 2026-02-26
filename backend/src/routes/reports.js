@@ -170,4 +170,67 @@ router.get('/weekly', async (req, res, next) => {
     }
 });
 
+// GET /api/reports/monthly
+router.get('/monthly', async (req, res, next) => {
+    try {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const firstOfMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+        const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+        const { data: bookings, error } = await supabase
+            .from('bookings')
+            .select('*, grounds(name)')
+            .gte('date', firstOfMonth)
+            .lte('date', today)
+            .eq('payment_status', 'paid');
+
+        if (error) throw error;
+
+        const totalRevenue = (bookings || []).reduce((sum, b) => sum + Number(b.base_price), 0);
+        const totalBookings = (bookings || []).length;
+
+        // Ground breakdown
+        const byGround = {};
+        for (const b of (bookings || [])) {
+            const name = b.grounds?.name || 'Unknown';
+            if (!byGround[name]) byGround[name] = { bookings: 0, revenue: 0, hours: 0 };
+            byGround[name].bookings++;
+            byGround[name].revenue += Number(b.base_price);
+            byGround[name].hours += Number(b.duration_hours || 1);
+        }
+
+        // Top ground
+        let topGround = null;
+        let topRevenue = 0;
+        for (const [name, data] of Object.entries(byGround)) {
+            if (data.revenue > topRevenue) {
+                topGround = name;
+                topRevenue = data.revenue;
+            }
+        }
+
+        // Peak hours (count bookings per hour)
+        const hourCounts = {};
+        for (const b of (bookings || [])) {
+            const startHour = parseInt(b.start_time.split(':')[0], 10);
+            const endHour = parseInt(b.end_time.split(':')[0], 10);
+            for (let h = startHour; h < endHour; h++) {
+                hourCounts[h] = (hourCounts[h] || 0) + 1;
+            }
+        }
+
+        res.json({
+            month: `${now.getFullYear()}-${pad(now.getMonth() + 1)}`,
+            totalRevenue,
+            totalBookings,
+            byGround,
+            topGround,
+            peakHours: hourCounts,
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
 module.exports = router;

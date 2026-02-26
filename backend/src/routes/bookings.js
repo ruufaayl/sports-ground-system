@@ -137,7 +137,7 @@ router.get('/today', requireAdmin, async (req, res, next) => {
 // GET /api/bookings/all — all bookings with filtering and pagination (Admin only)
 router.get('/all', requireAdmin, async (req, res, next) => {
     try {
-        const { date_from, date_to, ground_id, status, search, page = 1, limit = 20 } = req.query;
+        const { date_from, date_to, ground_id, status, payment_status, search, page = 1, limit = 20 } = req.query;
 
         let query = supabase
             .from('bookings')
@@ -149,12 +149,34 @@ router.get('/all', requireAdmin, async (req, res, next) => {
         // Apply filters
         if (date_from) query = query.gte('date', date_from);
         if (date_to) query = query.lte('date', date_to);
-        if (ground_id) query = query.eq('ground_id', ground_id);
-        if (status) query = query.eq('booking_status', status);
+
+        // Support array or single ground_id
+        if (ground_id) {
+            const ids = Array.isArray(ground_id) ? ground_id : [ground_id];
+            if (ids.length === 1) {
+                query = query.eq('ground_id', ids[0]);
+            } else {
+                query = query.in('ground_id', ids);
+            }
+        }
+
+        // Support array or single status
+        if (status) {
+            const statuses = Array.isArray(status) ? status : [status];
+            if (statuses.length === 1) {
+                query = query.eq('booking_status', statuses[0]);
+            } else {
+                query = query.in('booking_status', statuses);
+            }
+        }
+
+        // Payment status filter
+        if (payment_status) {
+            query = query.eq('payment_status', payment_status);
+        }
 
         if (search) {
-            // Supabase OR filter for search terms
-            query = query.or(`customer_phone.ilike.%${search}%,booking_ref.ilike.%${search}%`);
+            query = query.or(`customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%,booking_ref.ilike.%${search}%`);
         }
 
         // Apply pagination
@@ -174,6 +196,76 @@ router.get('/all', requireAdmin, async (req, res, next) => {
             total: count || 0,
             totalPages: Math.ceil((count || 0) / limit),
         });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// GET /api/bookings/calendar?week_start=YYYY-MM-DD
+router.get('/calendar', requireAdmin, async (req, res, next) => {
+    try {
+        const { week_start } = req.query;
+        if (!week_start) return res.status(400).json({ error: 'week_start is required' });
+
+        const start = new Date(week_start + 'T00:00:00');
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        const pad = (n) => String(n).padStart(2, '0');
+        const endStr = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
+
+        const { data: bookings, error } = await supabase
+            .from('bookings')
+            .select(`*, grounds (name)`)
+            .gte('date', week_start)
+            .lte('date', endStr)
+            .neq('booking_status', 'cancelled')
+            .order('date', { ascending: true })
+            .order('start_time', { ascending: true });
+
+        if (error) throw error;
+        res.json({ bookings: bookings || [] });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// GET /api/bookings/slot-status?ground_id=X&date=YYYY-MM-DD
+router.get('/slot-status', requireAdmin, async (req, res, next) => {
+    try {
+        const { ground_id, date } = req.query;
+        if (!ground_id || !date) return res.status(400).json({ error: 'ground_id and date are required' });
+
+        const { data: bookings, error } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('ground_id', ground_id)
+            .eq('date', date)
+            .neq('booking_status', 'cancelled')
+            .order('start_time', { ascending: true });
+
+        if (error) throw error;
+
+        // Generate hourly slots (0-23)
+        const slots = [];
+        for (let h = 0; h < 24; h++) {
+            const pad = (n) => String(n).padStart(2, '0');
+            const startTime = `${pad(h)}:00:00`;
+            const endTime = `${pad((h + 1) % 24)}:00:00`;
+            const booking = (bookings || []).find(b => {
+                const bStart = parseInt(b.start_time.split(':')[0], 10);
+                const bEnd = parseInt(b.end_time.split(':')[0], 10);
+                return h >= bStart && h < bEnd;
+            });
+            slots.push({
+                hour: h,
+                startTime,
+                endTime,
+                status: booking ? 'booked' : 'free',
+                booking: booking || null,
+            });
+        }
+
+        res.json({ ground_id, date, slots });
     } catch (err) {
         next(err);
     }

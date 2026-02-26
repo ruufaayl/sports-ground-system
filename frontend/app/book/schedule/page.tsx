@@ -492,18 +492,21 @@ function ScheduleInner() {
                     {/* Continue */}
                     <AnimatePresence>
                         {canContinue && (
-                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} transition={{ type: 'spring', stiffness: 300, damping: 24 }}>
-                                <motion.button onClick={handleContinue} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                                    style={{ width: '100%', padding: '18px', background: '#8B1A2B', border: '1px solid #C9A84C', borderRadius: 999, color: '#fff', fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 16, letterSpacing: '0.1em', cursor: 'none', boxShadow: '0 0 30px rgba(139,26,43,0.4)', transition: 'background 0.3s ease' }}>
-                                    CONTINUE →
-                                </motion.button>
+                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} transition={{ type: 'spring', stiffness: 300, damping: 24 }} style={{ display: 'flex', justifyContent: 'center' }}>
+                                <button onClick={handleContinue} className="btn-futuristic" style={{ width: 260 }}>
+                                    CONTINUE
+                                    <span className="btn-arrow">→</span>
+                                </button>
                             </motion.div>
                         )}
                     </AnimatePresence>
                     {!canContinue && !checking && (
-                        <button disabled style={{ width: '100%', padding: '18px', background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.2)', borderRadius: 999, color: 'rgba(255,255,255,0.25)', fontFamily: "var(--font-ui)", fontWeight: 700, fontSize: 16, letterSpacing: '0.1em', cursor: 'not-allowed' }}>
-                            CONTINUE →
-                        </button>
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <button disabled className="btn-futuristic" style={{ width: 260 }}>
+                                CONTINUE
+                                <span className="btn-arrow">→</span>
+                            </button>
+                        </div>
                     )}
                 </motion.div>
             </div>

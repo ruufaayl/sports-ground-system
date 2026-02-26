@@ -87,11 +87,11 @@ export default function FifaCard({ imagePath, index, style, loadingStrategy = 'l
                     zIndex: 4,
                 }} />
 
-                {/* Player image */}
+                {/* Player image — fills entire card */}
                 <div style={{
                     position: 'absolute',
                     top: 0, left: 0, right: 0,
-                    height: '78%',
+                    height: '100%',
                     overflow: 'hidden',
                 }}>
                     <Image
@@ -114,7 +114,7 @@ export default function FifaCard({ imagePath, index, style, loadingStrategy = 'l
                     <div style={{
                         position: 'absolute',
                         inset: 0,
-                        background: 'linear-gradient(to bottom, transparent 55%, rgba(10,6,16,0.7) 100%)',
+                        background: 'linear-gradient(to bottom, transparent 60%, rgba(10,6,16,0.5) 100%)',
                     }} />
                 </div>
 
@@ -130,40 +130,6 @@ export default function FifaCard({ imagePath, index, style, loadingStrategy = 'l
                         opacity: isHovering ? 1 : 0,
                     }}
                 />
-
-                {/* ECF bottom strip */}
-                <div style={{
-                    position: 'absolute',
-                    bottom: 0, left: 0, right: 0,
-                    height: '22%',
-                    background: 'linear-gradient(180deg, rgba(107,20,34,0.9) 0%, #6B1422 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    zIndex: 2,
-                }}>
-                    <div style={{
-                        fontFamily: "var(--font-ui)",
-                        fontSize: 16,
-                        fontWeight: 700,
-                        color: '#C9A84C',
-                        letterSpacing: '0.25em',
-                        textShadow: '0 0 10px rgba(201,168,76,0.6)',
-                    }}>ECF</div>
-                    <div style={{
-                        width: 1,
-                        height: 14,
-                        background: 'rgba(201,168,76,0.4)',
-                    }} />
-                    <div style={{
-                        fontFamily: "var(--font-ui)",
-                        fontSize: 12,
-                        fontWeight: 500,
-                        color: 'rgba(255,255,255,0.6)',
-                        letterSpacing: '0.1em',
-                    }}>{`#${index + 1}`}</div>
-                </div>
 
                 {/* Corner star ornament */}
                 <div style={{

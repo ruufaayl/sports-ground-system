@@ -1,182 +1,279 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RT, ResponsiveContainer } from 'recharts';
+import { adminFetch } from '../../../lib/adminApi';
 
-const fmt = (n: number) =>
-    new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 }).format(n || 0);
-const fmtDate = (d: string) =>
-    new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
-const dayLabel = (d: string) =>
-    new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
-const pct = (p: number, t: number) => (t ? Math.round((p / t) * 100) : 0);
+function fmt(n: number) { return Math.round(n).toLocaleString('en-PK'); }
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 
-function Stat({ label, value, color }: { label: string; value: string; color: string }) {
-    return (
-        <div style={{ flex: 1, background: '#0d0d1a', borderRadius: 12, padding: '20px 24px', border: `1px solid ${color}22`, textAlign: 'center' }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 10px' }}>{label}</p>
-            <p style={{ fontSize: 32, fontWeight: 800, color, margin: 0, fontVariantNumeric: 'tabular-nums' }}>{value}</p>
-        </div>
-    );
+type Tab = 'daily' | 'weekly' | 'monthly';
+
+interface DailyReport {
+    date: string;
+    bookings: { total: number; cash: number; online: number; byGround: Record<string, number> };
+    tuckShop: { total: number; cash: number; online: number };
+    grandTotal: number;
 }
 
-export default function AdminReports() {
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [report, setReport] = useState<any>(null);
-    const [weekly, setWeekly] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
+interface WeeklyDay {
+    date: string;
+    bookingRevenue: number;
+    tuckRevenue: number;
+    total: number;
+}
+
+interface MonthlyReport {
+    month: string;
+    totalRevenue: number;
+    totalBookings: number;
+    byGround: Record<string, { bookings: number; revenue: number; hours: number }>;
+    topGround: string;
+    peakHours: Record<string, number>;
+}
+
+export default function ReportsPage() {
+    const [tab, setTab] = useState<Tab>('daily');
+    const [dailyDate, setDailyDate] = useState(todayStr());
+    const [daily, setDaily] = useState<DailyReport | null>(null);
+    const [weekly, setWeekly] = useState<WeeklyDay[]>([]);
+    const [monthly, setMonthly] = useState<MonthlyReport | null>(null);
     const [sending, setSending] = useState(false);
 
-    const load = useCallback(async (d: string) => {
-        if (!d) return;
-        setLoading(true);
-        const s = localStorage.getItem('adminSecret') || '';
-        try {
-            const [dr, wr] = await Promise.all([
-                fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/reports/daily/${d}`, { headers: { 'x-admin-secret': s } }),
-                fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/reports/weekly`, { headers: { 'x-admin-secret': s } }),
-            ]);
-            setReport(dr.ok ? await dr.json() : null);
-            if (wr.ok) {
-                const r = (await wr.json()) as any[];
-                setWeekly(r.reverse().map(x => ({ day: dayLabel(x.date), bookings: x.bookingRevenue, tuck: x.tuckRevenue })));
-            }
-        } finally { setLoading(false); }
+    const loadDaily = useCallback(async () => {
+        try { const d = await adminFetch<DailyReport>(`/api/reports/daily/${dailyDate}`); setDaily(d); } catch { /* ignore */ }
+    }, [dailyDate]);
+
+    const loadWeekly = useCallback(async () => {
+        try { const d = await adminFetch<WeeklyDay[]>('/api/reports/weekly'); setWeekly(d); } catch { /* ignore */ }
     }, []);
 
-    useEffect(() => { load(date); }, [date, load]);
+    const loadMonthly = useCallback(async () => {
+        try { const d = await adminFetch<MonthlyReport>('/api/reports/monthly'); setMonthly(d); } catch { /* ignore */ }
+    }, []);
 
-    const send = async () => {
-        if (!confirm('Send daily report to WhatsApp?')) return;
+    useEffect(() => { if (tab === 'daily') loadDaily(); }, [tab, loadDaily]);
+    useEffect(() => { if (tab === 'weekly') loadWeekly(); }, [tab, loadWeekly]);
+    useEffect(() => { if (tab === 'monthly') loadMonthly(); }, [tab, loadMonthly]);
+
+    const handleSendWhatsApp = async () => {
         setSending(true);
-        try {
-            const r = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/reports/send-daily`, {
-                method: 'POST', headers: { 'x-admin-secret': localStorage.getItem('adminSecret') || '' },
-            });
-            alert(r.ok ? '✅ Report sent!' : '❌ Failed.');
-        } finally { setSending(false); }
+        try { await adminFetch('/api/reports/send-daily', { method: 'POST' }); alert('Report sent to WhatsApp!'); }
+        catch { alert('Failed to send'); }
+        finally { setSending(false); }
     };
 
+    const maxWeeklyValue = Math.max(...weekly.map(w => w.total), 1);
+    const maxPeakHour = monthly ? Math.max(...Object.values(monthly.peakHours), 1) : 1;
+
     return (
-        <div style={{ fontFamily: "'Inter',sans-serif", color: '#fff' }}>
-            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        <div>
+            <h1 style={{ fontFamily: 'var(--font-ui)', fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '0.06em', margin: '0 0 24px' }}>REPORTS</h1>
 
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} style={{ marginBottom: 28 }}>
-                <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Financial Reports</h1>
-                <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>Daily breakdowns and weekly trends</p>
-            </motion.div>
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+                {(['daily', 'weekly', 'monthly'] as const).map(t => (
+                    <button key={t} onClick={() => setTab(t)} style={{
+                        background: tab === t ? '#8B1A2B' : 'transparent',
+                        border: `1px solid ${tab === t ? '#8B1A2B' : 'rgba(255,255,255,0.15)'}`,
+                        borderRadius: 2, color: '#fff', fontSize: 13, fontWeight: 600,
+                        padding: '10px 24px', cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                        letterSpacing: '0.1em', textTransform: 'uppercase',
+                    }}>{t}</button>
+                ))}
+            </div>
 
-            {/* Date selector */}
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-                style={{ background: '#111827', borderRadius: 16, padding: 20, marginBottom: 24, border: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 14, color: '#9ca3af' }}>Select Date:</span>
-                <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                    style={{ background: '#0d0d1a', border: '1px solid rgba(0,255,136,0.25)', borderRadius: 8, padding: '10px 14px', color: '#fff', height: 44, fontSize: 14, fontFamily: 'inherit', outline: 'none' }} />
-                <button onClick={() => load(date)}
-                    style={{ height: 44, padding: '0 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#00ff88,#00cc6a)', color: '#000', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Generate Report
-                </button>
-                <button onClick={send} disabled={sending}
-                    style={{ height: 44, padding: '0 24px', borderRadius: 8, border: '1px solid rgba(0,255,136,0.4)', background: 'transparent', color: '#00ff88', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: sending ? 0.6 : 1 }}>
-                    {sending ? 'Sending...' : '📱 Send to WhatsApp'}
-                </button>
-            </motion.div>
-
-            {loading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200, gap: 12 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid rgba(0,255,136,0.2)', borderTopColor: '#00ff88', animation: 'spin 0.7s linear infinite' }} />
-                    <span style={{ color: '#6b7280' }}>Generating report...</span>
-                </div>
-            ) : !report ? (
-                <div style={{ background: '#111827', borderRadius: 16, padding: 48, textAlign: 'center', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
-                    <p style={{ color: '#6b7280', margin: 0 }}>Select a date to view report</p>
-                </div>
-            ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                    {/* Top stats */}
-                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                        style={{ background: '#111827', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <div style={{ marginBottom: 20, paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                            <p style={{ fontSize: 12, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 4px' }}>Report for</p>
-                            <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{fmtDate(date)}</h2>
-                        </div>
-                        <div style={{ display: 'flex', gap: 16 }}>
-                            <Stat label="Booking Revenue" value={fmt(report.bookings?.total ?? 0)} color="#00ff88" />
-                            <Stat label="Tuck Shop Revenue" value={fmt(report.tuckShop?.total ?? 0)} color="#0088ff" />
-                            <div style={{ flex: 1, background: 'linear-gradient(135deg,rgba(0,255,136,0.08),rgba(0,136,255,0.08))', borderRadius: 12, padding: '20px 24px', border: '1px solid rgba(0,255,136,0.15)', textAlign: 'center' }}>
-                                <p style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 10px' }}>Grand Total</p>
-                                <p style={{ fontSize: 36, fontWeight: 900, margin: 0, background: 'linear-gradient(135deg,#00ff88,#0088ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                                    {fmt(report.grandTotal ?? 0)}
-                                </p>
-                            </div>
-                        </div>
-                    </motion.div>
-
-                    {/* Breakdown row */}
-                    <div style={{ display: 'flex', gap: 20 }}>
-                        {/* Payment method */}
-                        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-                            style={{ flex: 1, background: '#111827', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
-                            <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 20px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Payment Split</h3>
-                            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-                                <div style={{ flex: 1, background: '#0d0d1a', borderRadius: 10, padding: 16, textAlign: 'center' }}>
-                                    <p style={{ fontSize: 11, color: '#6b7280', margin: '0 0 6px', textTransform: 'uppercase' }}>Cash</p>
-                                    <p style={{ fontSize: 22, fontWeight: 800, color: '#00ff88', margin: 0 }}>{fmt(report.bookings?.cash ?? 0)}</p>
-                                </div>
-                                <div style={{ flex: 1, background: '#0d0d1a', borderRadius: 10, padding: 16, textAlign: 'center' }}>
-                                    <p style={{ fontSize: 11, color: '#6b7280', margin: '0 0 6px', textTransform: 'uppercase' }}>Online</p>
-                                    <p style={{ fontSize: 22, fontWeight: 800, color: '#0088ff', margin: 0 }}>{fmt(report.bookings?.online ?? 0)}</p>
-                                </div>
-                            </div>
-                            <div style={{ height: 8, borderRadius: 4, background: '#1a1a2e', overflow: 'hidden', display: 'flex' }}>
-                                <div style={{ width: `${pct(report.bookings?.cash ?? 0, report.bookings?.total ?? 1)}%`, background: '#00ff88' }} />
-                                <div style={{ flex: 1, background: '#0088ff' }} />
-                            </div>
-                        </motion.div>
-
-                        {/* Ground breakdown */}
-                        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                            style={{ flex: 1, background: '#111827', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
-                            <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 20px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Revenue by Ground</h3>
-                            {Object.keys(report.bookings?.byGround ?? {}).length === 0 ? (
-                                <p style={{ color: '#4b5563', fontSize: 13 }}>No paid bookings on this date.</p>
-                            ) : (
-                                Object.entries(report.bookings?.byGround ?? {}).map(([n, a]: any) => (
-                                    <div key={n} style={{ marginBottom: 14 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                            <span style={{ fontSize: 13, color: '#d1d5db' }}>{n}</span>
-                                            <span style={{ fontSize: 13, fontWeight: 700, color: '#00ff88' }}>{fmt(a)}</span>
-                                        </div>
-                                        <div style={{ height: 6, borderRadius: 4, background: '#1a1a2e' }}>
-                                            <div style={{ width: `${pct(a, report.bookings?.total ?? 1)}%`, height: '100%', background: '#00ff88', borderRadius: 4 }} />
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </motion.div>
+            {/* ═══ DAILY TAB ═══ */}
+            {tab === 'daily' && (
+                <div>
+                    <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center' }}>
+                        <input type="date" value={dailyDate} onChange={e => setDailyDate(e.target.value)} style={{
+                            background: '#111218', border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: 2, color: '#fff', fontSize: 13, padding: '8px 12px',
+                            fontFamily: 'var(--font-ui)', outline: 'none', colorScheme: 'dark',
+                        }} />
+                        <button onClick={handleSendWhatsApp} disabled={sending} className="btn-futuristic" style={{ fontSize: 11, height: 40, padding: '0 20px' }}>
+                            {sending ? 'SENDING...' : 'SEND TO WHATSAPP'}
+                        </button>
                     </div>
 
-                    {/* Weekly chart */}
-                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-                        style={{ background: '#111827', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.06)' }}>
-                        <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 24px' }}>Last 7 Days Revenue</h3>
-                        {weekly.length === 0 ? (
-                            <p style={{ color: '#4b5563', textAlign: 'center', padding: 40 }}>No weekly data.</p>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={220}>
-                                <BarChart data={weekly} barGap={4}>
-                                    <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.05)" />
-                                    <XAxis dataKey="day" tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fill: '#6b7280', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                                    <RT cursor={{ fill: 'rgba(0,255,136,0.05)' }} contentStyle={{ background: '#1a1a2e', border: '1px solid rgba(0,255,136,0.2)', borderRadius: 8, fontSize: 12 }} formatter={(v: any) => [fmt(v), '']} />
-                                    <Bar dataKey="bookings" name="Bookings" fill="#00ff88" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
-                                    <Bar dataKey="tuck" name="Tuck Shop" fill="#0088ff" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        )}
-                    </motion.div>
+                    {daily && (
+                        <>
+                            {/* Revenue Cards */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+                                {[
+                                    { label: 'BOOKING REVENUE', value: daily.bookings.total, accent: '#8B1A2B' },
+                                    { label: 'TUCK SHOP', value: daily.tuckShop.total, accent: '#C9A84C' },
+                                    { label: 'GRAND TOTAL', value: daily.grandTotal, accent: '#00a651' },
+                                ].map(c => (
+                                    <div key={c.label} style={{
+                                        background: '#111218', border: '1px solid rgba(255,255,255,0.06)',
+                                        borderRadius: 4, padding: 20, position: 'relative', overflow: 'hidden',
+                                    }}>
+                                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: c.accent }} />
+                                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>{c.label}</div>
+                                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 32, fontWeight: 800, color: c.label === 'GRAND TOTAL' ? '#C9A84C' : '#fff' }}>PKR {fmt(c.value)}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Ground Performance */}
+                            <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, padding: 20, marginBottom: 24 }}>
+                                <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.35)', marginBottom: 16 }}>GROUND PERFORMANCE</div>
+                                {Object.entries(daily.bookings.byGround).map(([ground, revenue]) => {
+                                    const pct = daily.bookings.total > 0 ? (revenue / daily.bookings.total) * 100 : 0;
+                                    return (
+                                        <div key={ground} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                                            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#8B1A2B', width: 40 }}>{ground}</span>
+                                            <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 4, overflow: 'hidden' }}>
+                                                <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #8B1A2B, #C9A84C)', borderRadius: 4, transition: 'width 0.5s ease' }} />
+                                            </div>
+                                            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#fff', width: 100, textAlign: 'right' }}>PKR {fmt(revenue)}</span>
+                                            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.4)', width: 40, textAlign: 'right' }}>{Math.round(pct)}%</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Cash vs Online */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+                                {[
+                                    { label: 'CASH', value: daily.bookings.cash, color: '#8B1A2B', total: daily.bookings.total },
+                                    { label: 'ONLINE', value: daily.bookings.online, color: '#C9A84C', total: daily.bookings.total },
+                                ].map(c => {
+                                    const pct = c.total > 0 ? (c.value / c.total) * 100 : 0;
+                                    return (
+                                        <div key={c.label} style={{
+                                            background: '#111218', border: '1px solid rgba(255,255,255,0.06)',
+                                            borderRadius: 4, padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                        }}>
+                                            <div style={{
+                                                width: 120, height: 120, borderRadius: '50%', position: 'relative',
+                                                background: `conic-gradient(${c.color} 0deg ${pct * 3.6}deg, rgba(255,255,255,0.06) ${pct * 3.6}deg 360deg)`,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+                                            }}>
+                                                <div style={{ width: 90, height: 90, borderRadius: '50%', background: '#111218', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                                                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 20, fontWeight: 800, color: c.color }}>{Math.round(pct)}%</div>
+                                                </div>
+                                            </div>
+                                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>{c.label}</div>
+                                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 18, fontWeight: 700, color: '#fff' }}>PKR {fmt(c.value)}</div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* ═══ WEEKLY TAB ═══ */}
+            {tab === 'weekly' && (
+                <div>
+                    <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, padding: 24 }}>
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.35)', marginBottom: 24 }}>WEEKLY REVENUE</div>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 200 }}>
+                            {weekly.map((day) => (
+                                <div key={day.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>
+                                        {fmt(day.total)}
+                                    </div>
+                                    <div style={{ width: '100%', display: 'flex', gap: 2, alignItems: 'flex-end' }}>
+                                        <div style={{
+                                            flex: 1,
+                                            height: Math.max(4, (day.bookingRevenue / maxWeeklyValue) * 180),
+                                            background: 'linear-gradient(to top, #8B1A2B, rgba(139,26,43,0.6))',
+                                            borderRadius: '3px 3px 0 0',
+                                            transition: 'height 0.5s ease',
+                                        }} />
+                                        <div style={{
+                                            flex: 1,
+                                            height: Math.max(4, (day.tuckRevenue / maxWeeklyValue) * 180),
+                                            background: 'linear-gradient(to top, #C9A84C, rgba(201,168,76,0.6))',
+                                            borderRadius: '3px 3px 0 0',
+                                            transition: 'height 0.5s ease',
+                                        }} />
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>
+                                        {new Date(day.date + 'T00:00:00').toLocaleDateString('en-PK', { weekday: 'short' })}
+                                    </div>
+                                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>
+                                        {day.date.split('-').slice(1).join('/')}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: 20, marginTop: 16, justifyContent: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div style={{ width: 12, height: 12, borderRadius: 2, background: '#8B1A2B' }} />
+                                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Bookings</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <div style={{ width: 12, height: 12, borderRadius: 2, background: '#C9A84C' }} />
+                                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>Tuck Shop</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ═══ MONTHLY TAB ═══ */}
+            {tab === 'monthly' && monthly && (
+                <div>
+                    {/* Summary Cards */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+                        {[
+                            { label: 'TOTAL REVENUE', value: `PKR ${fmt(monthly.totalRevenue)}`, accent: '#C9A84C' },
+                            { label: 'TOTAL BOOKINGS', value: String(monthly.totalBookings), accent: '#8B1A2B' },
+                            { label: 'TOP GROUND', value: monthly.topGround || '—', accent: '#00a651' },
+                        ].map(c => (
+                            <div key={c.label} style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, padding: 20, position: 'relative', overflow: 'hidden' }}>
+                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: c.accent }} />
+                                <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>{c.label}</div>
+                                <div style={{ fontFamily: 'var(--font-ui)', fontSize: 28, fontWeight: 800, color: '#fff' }}>{c.value}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Ground Breakdown Table */}
+                    <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, padding: 20, marginBottom: 24 }}>
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.35)', marginBottom: 16 }}>GROUND BREAKDOWN</div>
+                        {Object.entries(monthly.byGround).map(([ground, data]) => {
+                            const pct = monthly.totalRevenue > 0 ? (data.revenue / monthly.totalRevenue) * 100 : 0;
+                            return (
+                                <div key={ground} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#8B1A2B', width: 60 }}>{ground}</span>
+                                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.5)', width: 50, textAlign: 'center' }}>{data.bookings}</span>
+                                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.5)', width: 50, textAlign: 'center' }}>{data.hours}h</span>
+                                    <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.05)', borderRadius: 4, overflow: 'hidden' }}>
+                                        <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #8B1A2B, #C9A84C)', borderRadius: 4 }} />
+                                    </div>
+                                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#fff', width: 100, textAlign: 'right' }}>PKR {fmt(data.revenue)}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Peak Hours Heatmap */}
+                    <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, padding: 20 }}>
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.35)', marginBottom: 16 }}>PEAK HOURS</div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {Array.from({ length: 24 }, (_, h) => {
+                                const count = monthly.peakHours[String(h)] || 0;
+                                const intensity = count / maxPeakHour;
+                                return (
+                                    <div key={h} title={`${h % 12 || 12}${h >= 12 ? 'PM' : 'AM'}: ${count} bookings`} style={{
+                                        width: 36, height: 36, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: count > 0 ? `rgba(139,26,43,${0.1 + intensity * 0.7})` : 'rgba(255,255,255,0.03)',
+                                        border: `1px solid ${count > 0 ? `rgba(139,26,43,${0.2 + intensity * 0.5})` : 'rgba(255,255,255,0.05)'}`,
+                                        fontFamily: 'var(--font-ui)', fontSize: 9, fontWeight: 600,
+                                        color: count > 0 ? '#fff' : 'rgba(255,255,255,0.25)',
+                                    }}>
+                                        {h % 12 || 12}{h >= 12 ? 'P' : 'A'}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

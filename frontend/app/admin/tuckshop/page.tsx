@@ -1,282 +1,192 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useCallback } from 'react';
+import { adminFetch } from '../../../lib/adminApi';
 
-const fmt = (n: number) =>
-    new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR', maximumFractionDigits: 0 }).format(n || 0);
-const fmtT = (d: string) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function fmt(n: number) { return Math.round(n).toLocaleString('en-PK'); }
 
-const PAY_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-    cash: { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '#f59e0b' },
-    easypaisa: { bg: 'rgba(0,136,255,0.12)', color: '#0088ff', border: '#0088ff' },
-    jazzcash: { bg: 'rgba(139,92,246,0.12)', color: '#8b5cf6', border: '#8b5cf6' },
+const PAYMENT_STYLES: Record<string, { color: string; bg: string; border: string }> = {
+    cash: { color: '#e67e22', bg: 'rgba(230,126,34,0.15)', border: 'rgba(230,126,34,0.4)' },
+    easypaisa: { color: '#00a651', bg: 'rgba(0,166,81,0.15)', border: 'rgba(0,166,81,0.4)' },
+    jazzcash: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)', border: 'rgba(139,92,246,0.4)' },
 };
 
-// Toggle button extracted to avoid hooks in loops
-function MethodToggle({ method, selected, onSelect }: { method: string; selected: boolean; onSelect: () => void }) {
-    return (
-        <button type="button" onClick={onSelect} style={{
-            flex: 1, height: 44, borderRadius: 10, fontWeight: 700, fontSize: 12,
-            textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer', fontFamily: 'inherit',
-            border: selected ? '1px solid #00ff88' : '1px solid rgba(255,255,255,0.1)',
-            background: selected ? 'rgba(0,255,136,0.12)' : '#1a1a2e',
-            color: selected ? '#00ff88' : '#6b7280',
-            transition: 'all 0.15s ease',
-        }}>{method}</button>
-    );
+interface Sale {
+    id: string;
+    item_name: string;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+    payment_method: string;
+    created_at: string;
 }
 
-export default function AdminTuckShop() {
-    const [sales, setSales] = useState<any[]>([]);
-    const [totals, setTotals] = useState({ total: 0, cash: 0, online: 0 });
-    const [loading, setLoading] = useState(true);
-    const [modal, setModal] = useState(false);
+export default function TuckShopPage() {
+    const [sales, setSales] = useState<Sale[]>([]);
+    const [total, setTotal] = useState(0);
+    const [modalOpen, setModalOpen] = useState(false);
     const [itemName, setItemName] = useState('');
-    const [qty, setQty] = useState(1);
-    const [unitPrice, setUnitPrice] = useState(0);
-    const [payMethod, setPayMethod] = useState('cash');
+    const [quantity, setQuantity] = useState('1');
+    const [unitPrice, setUnitPrice] = useState('');
+    const [paymentMethod, setPaymentMethod] = useState('cash');
     const [submitting, setSubmitting] = useState(false);
 
-    const fetchSales = async () => {
-        setLoading(true);
-        const s = localStorage.getItem('adminSecret') || '';
+    const loadData = useCallback(async () => {
         try {
-            const r = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/tuckshop/today`, { headers: { 'x-admin-secret': s } });
-            if (r.ok) {
-                const d = await r.json();
-                const list = d.sales || [];
-                setSales(list);
-                let cash = 0, online = 0, total = 0;
-                list.forEach((x: any) => {
-                    const a = Number(x.total_price);
-                    total += a;
-                    if (x.payment_method === 'cash') cash += a; else online += a;
-                });
-                setTotals({ total, cash, online });
-            }
-        } finally { setLoading(false); }
-    };
+            const data = await adminFetch<{ sales: Sale[]; total: number }>('/api/tuckshop/today');
+            setSales(data.sales);
+            setTotal(data.total);
+        } catch { /* ignore */ }
+    }, []);
 
-    useEffect(() => { fetchSales(); }, []);
+    useEffect(() => { loadData(); }, [loadData]);
 
-    const handleAdd = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const cashTotal = sales.filter(s => s.payment_method === 'cash').reduce((sum, s) => sum + Number(s.total_price), 0);
+    const onlineTotal = total - cashTotal;
+
+    const handleAddSale = async () => {
+        if (!itemName || !quantity || !unitPrice) { alert('Fill all fields'); return; }
         setSubmitting(true);
-        const s = localStorage.getItem('adminSecret') || '';
         try {
-            const r = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/tuckshop/sale`, {
+            await adminFetch('/api/tuckshop/sale', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-admin-secret': s },
-                body: JSON.stringify({ itemName, quantity: qty, unitPrice, paymentMethod: payMethod }),
+                body: JSON.stringify({ itemName, quantity: Number(quantity), unitPrice: Number(unitPrice), paymentMethod }),
             });
-            if (r.ok) {
-                setModal(false);
-                setItemName(''); setQty(1); setUnitPrice(0); setPayMethod('cash');
-                fetchSales();
-            } else {
-                const err = await r.json();
-                alert(err.error || 'Failed to add sale');
-            }
-        } finally { setSubmitting(false); }
+            setModalOpen(false);
+            setItemName(''); setQuantity('1'); setUnitPrice('');
+            loadData();
+        } catch { alert('Failed to add sale'); }
+        finally { setSubmitting(false); }
     };
 
-    const stats = [
-        { label: "Today's Sales", value: fmt(totals.total), color: '#00ff88', borderColor: 'rgba(0,255,136,0.15)' },
-        { label: 'Cash Sales', value: fmt(totals.cash), color: '#f59e0b', borderColor: 'rgba(245,158,11,0.15)' },
-        { label: 'Online Sales', value: fmt(totals.online), color: '#0088ff', borderColor: 'rgba(0,136,255,0.15)' },
-    ];
-
-    const inp: React.CSSProperties = {
-        width: '100%', background: '#0d0d1a', border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 10, padding: '12px 14px', color: '#fff', fontSize: 14,
-        fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
-    };
+    const computedTotal = Number(quantity || 0) * Number(unitPrice || 0);
 
     return (
-        <div style={{ fontFamily: "'Inter',sans-serif", color: '#fff' }}>
-            <style>{`@keyframes spin{to{transform:rotate(360deg)}} input:focus{border-color:#00ff88!important;box-shadow:0 0 0 3px rgba(0,255,136,0.1)!important}`}</style>
-
+        <div>
             {/* Header */}
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <div>
-                    <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Tuck Shop</h1>
-                    <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>Point of sale & daily tracking</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <h1 style={{ fontFamily: 'var(--font-ui)', fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '0.06em', margin: 0 }}>TUCK SHOP</h1>
+                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#C9A84C' }}>PKR {fmt(total)}</span>
                 </div>
-                <button onClick={() => setModal(true)} style={{
-                    height: 44, padding: '0 24px', borderRadius: 10, border: 'none',
-                    background: 'linear-gradient(135deg,#00ff88,#00cc6a)', color: '#000',
-                    fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    boxShadow: '0 4px 15px rgba(0,255,136,0.3)',
-                    transition: 'transform 0.15s',
-                }}
-                    onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.02)')}
-                    onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
-                    ➕ Add Sale
+                <button onClick={() => setModalOpen(true)} className="btn-futuristic" style={{ fontSize: 12, height: 44, padding: '0 24px' }}>
+                    ADD SALE <span className="btn-arrow">→</span>
                 </button>
-            </motion.div>
+            </div>
 
             {/* Stats */}
-            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-                style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-                {stats.map((s, i) => (
-                    <motion.div key={s.label}
-                        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 + i * 0.08 }}
-                        style={{
-                            flex: 1, background: '#111827', borderRadius: 16, padding: 24,
-                            border: `1px solid ${s.borderColor}`,
-                            borderTopWidth: 3, borderTopColor: s.color, textAlign: 'center',
-                        }}>
-                        <p style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 10px' }}>{s.label}</p>
-                        <p style={{ fontSize: 32, fontWeight: 800, color: s.color, margin: 0, fontVariantNumeric: 'tabular-nums' }}>{s.value}</p>
-                    </motion.div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+                {[
+                    { label: "TODAY'S TOTAL", value: `PKR ${fmt(total)}`, accent: '#C9A84C' },
+                    { label: 'CASH SALES', value: `PKR ${fmt(cashTotal)}`, accent: '#e67e22' },
+                    { label: 'ONLINE SALES', value: `PKR ${fmt(onlineTotal)}`, accent: '#00a651' },
+                ].map(c => (
+                    <div key={c.label} style={{
+                        background: '#111218', border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: 4, padding: 20, position: 'relative', overflow: 'hidden',
+                    }}>
+                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: c.accent }} />
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>{c.label}</div>
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 28, fontWeight: 800, color: '#fff' }}>{c.value}</div>
+                    </div>
                 ))}
-            </motion.div>
+            </div>
 
             {/* Table */}
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-                style={{ background: '#111827', borderRadius: 16, border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-                <div style={{ padding: '16px 24px', borderBottom: '2px solid rgba(0,255,136,0.15)', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Today's Transactions</h2>
-                    <span style={{ background: '#1a1a2e', color: '#9ca3af', borderRadius: 20, padding: '2px 12px', fontSize: 12, fontWeight: 600, border: '1px solid rgba(255,255,255,0.08)' }}>
-                        {sales.length}
-                    </span>
+            <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 600 }}>
+                        <thead>
+                            <tr>
+                                {['#', 'ITEM', 'QTY', 'UNIT PRICE', 'TOTAL', 'PAYMENT', 'TIME'].map(h => (
+                                    <th key={h} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sales.length === 0 && <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-ui)' }}>No sales today</td></tr>}
+                            {sales.map((s, i) => {
+                                const ps = PAYMENT_STYLES[s.payment_method] || PAYMENT_STYLES.cash;
+                                return (
+                                    <tr key={s.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent' }}>
+                                        <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{i + 1}</td>
+                                        <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 500, color: '#fff' }}>{s.item_name}</td>
+                                        <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>{s.quantity}</td>
+                                        <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>PKR {fmt(s.unit_price)}</td>
+                                        <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#fff' }}>PKR {fmt(s.total_price)}</td>
+                                        <td style={{ padding: '12px 16px' }}>
+                                            <span style={{ background: ps.bg, border: `1px solid ${ps.border}`, borderRadius: 12, padding: '2px 10px', fontSize: 10, fontWeight: 600, color: ps.color, textTransform: 'uppercase' }}>{s.payment_method}</span>
+                                        </td>
+                                        <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{new Date(s.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
+            </div>
 
-                {loading ? (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 160, gap: 12 }}>
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid rgba(0,255,136,0.2)', borderTopColor: '#00ff88', animation: 'spin 0.7s linear infinite' }} />
+            {/* ═══ ADD SALE MODAL ═══ */}
+            {modalOpen && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+                    onClick={() => setModalOpen(false)}
+                >
+                    <div onClick={e => e.stopPropagation()} style={{
+                        background: '#111218', border: '1px solid rgba(139,26,43,0.3)',
+                        borderRadius: 4, padding: 40, maxWidth: 440, width: '100%',
+                    }}>
+                        <h2 style={{ fontFamily: 'var(--font-ui)', fontSize: 24, fontWeight: 800, color: '#fff', letterSpacing: '0.06em', margin: '0 0 24px' }}>ADD SALE</h2>
+
+                        {[
+                            { label: 'ITEM NAME', value: itemName, set: setItemName, type: 'text' },
+                            { label: 'QUANTITY', value: quantity, set: setQuantity, type: 'number' },
+                            { label: 'UNIT PRICE (PKR)', value: unitPrice, set: setUnitPrice, type: 'number' },
+                        ].map(f => (
+                            <div key={f.label} style={{ marginBottom: 16 }}>
+                                <label style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 6 }}>{f.label}</label>
+                                <input type={f.type} value={f.value} onChange={e => f.set(e.target.value)} style={{
+                                    width: '100%', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)',
+                                    borderRadius: 2, padding: '12px 14px', color: '#fff', fontSize: 14,
+                                    fontFamily: 'var(--font-ui)', outline: 'none',
+                                }} />
+                            </div>
+                        ))}
+
+                        {/* Total display */}
+                        <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 2, padding: 16, marginBottom: 20, textAlign: 'center' }}>
+                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: '#C9A84C', marginBottom: 6 }}>TOTAL</div>
+                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 32, fontWeight: 800, color: '#C9A84C' }}>PKR {fmt(computedTotal)}</div>
+                        </div>
+
+                        {/* Payment method */}
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>PAYMENT METHOD</div>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+                            {[['cash', 'CASH'], ['easypaisa', 'EASYPAISA'], ['jazzcash', 'JAZZCASH']].map(([val, label]) => (
+                                <button key={val} onClick={() => setPaymentMethod(val)} style={{
+                                    flex: 1, height: 40, borderRadius: 2,
+                                    background: paymentMethod === val ? '#8B1A2B' : 'transparent',
+                                    border: `1px solid ${paymentMethod === val ? '#8B1A2B' : 'rgba(255,255,255,0.15)'}`,
+                                    color: '#fff', fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 600,
+                                    cursor: 'pointer', letterSpacing: '0.05em',
+                                }}>
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 16 }}>
+                            <button onClick={handleAddSale} disabled={submitting} className="btn-futuristic" style={{ flex: 1 }}>
+                                {submitting ? 'SAVING...' : 'SAVE SALE'}
+                                <span className="btn-arrow">→</span>
+                            </button>
+                            <button onClick={() => setModalOpen(false)} style={{
+                                background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)',
+                                fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                            }}>CANCEL</button>
+                        </div>
                     </div>
-                ) : sales.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '48px 24px' }}>
-                        <div style={{ fontSize: 48, marginBottom: 12 }}>🛒</div>
-                        <p style={{ fontSize: 16, color: '#6b7280', margin: 0 }}>No sales recorded today</p>
-                        <p style={{ fontSize: 13, color: '#4b5563', margin: '8px 0 0' }}>Click "+ Add Sale" to record a transaction</p>
-                    </div>
-                ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-                            <thead>
-                                <tr style={{ background: '#0d0d1a' }}>
-                                    {['#', 'Item', 'Qty', 'Unit Price', 'Total', 'Payment', 'Time'].map(h => (
-                                        <th key={h} style={{ padding: '0 16px', height: 44, textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sales.map((s, i) => {
-                                    const rowBg = i % 2 === 0 ? '#111827' : '#0d0d1a';
-                                    const pc = PAY_COLORS[s.payment_method] || PAY_COLORS.cash;
-                                    return (
-                                        <motion.tr key={s.id}
-                                            initial={{ opacity: 0, x: -6 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: i * 0.04 }}
-                                            style={{ background: rowBg }}
-                                            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,255,136,0.03)')}
-                                            onMouseLeave={e => (e.currentTarget.style.background = rowBg)}>
-                                            <td style={{ padding: '0 16px', height: 52, fontSize: 12, color: '#4b5563', fontWeight: 600 }}>{i + 1}</td>
-                                            <td style={{ padding: '0 16px', fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>{s.item_name}</td>
-                                            <td style={{ padding: '0 16px', fontSize: 14, color: '#9ca3af', textAlign: 'center' }}>{s.quantity}</td>
-                                            <td style={{ padding: '0 16px', fontSize: 13, color: '#9ca3af' }}>{fmt(s.unit_price)}</td>
-                                            <td style={{ padding: '0 16px', fontSize: 14, fontWeight: 700, color: '#f59e0b', fontVariantNumeric: 'tabular-nums' }}>{fmt(s.total_price)}</td>
-                                            <td style={{ padding: '0 16px' }}>
-                                                <span style={{
-                                                    background: pc.bg, color: pc.color, border: `1px solid ${pc.border}`,
-                                                    borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700,
-                                                    textTransform: 'uppercase', display: 'inline-block',
-                                                }}>{s.payment_method}</span>
-                                            </td>
-                                            <td style={{ padding: '0 16px', fontSize: 13, color: '#6b7280', fontFamily: 'monospace' }}>{fmtT(s.created_at)}</td>
-                                        </motion.tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                {/* Summary footer */}
-                {sales.length > 0 && (
-                    <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 13, color: '#6b7280' }}>
-                            {sales.length} items sold · Cash: <span style={{ color: '#f59e0b', fontWeight: 600 }}>{fmt(totals.cash)}</span> · Online: <span style={{ color: '#0088ff', fontWeight: 600 }}>{fmt(totals.online)}</span>
-                        </span>
-                        <span style={{ fontSize: 15, fontWeight: 800, color: '#00ff88' }}>Total: {fmt(totals.total)}</span>
-                    </div>
-                )}
-            </motion.div>
-
-            {/* ADD SALE MODAL */}
-            <AnimatePresence>
-                {modal && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', padding: 16 }}
-                        onClick={() => setModal(false)}>
-                        <motion.div
-                            initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            onClick={e => e.stopPropagation()}
-                            style={{ width: 400, background: '#111827', borderRadius: 16, padding: 32, border: '1px solid rgba(0,255,136,0.15)', position: 'relative' }}>
-
-                            {/* Close X */}
-                            <button onClick={() => setModal(false)} style={{
-                                position: 'absolute', top: 16, right: 16, background: 'none', border: 'none',
-                                color: '#6b7280', fontSize: 18, cursor: 'pointer', padding: 4, lineHeight: 1,
-                            }}>✕</button>
-
-                            <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 24px' }}>Record Sale</h2>
-
-                            <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                <div>
-                                    <label style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Item Name</label>
-                                    <input required autoFocus placeholder="e.g. Water Bottle" value={itemName} onChange={e => setItemName(e.target.value)} style={inp} />
-                                </div>
-                                <div style={{ display: 'flex', gap: 12 }}>
-                                    <div style={{ flex: 1 }}>
-                                        <label style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Quantity</label>
-                                        <input type="number" min={1} required value={qty} onChange={e => setQty(Number(e.target.value))} style={inp} />
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <label style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Unit Price (PKR)</label>
-                                        <input type="number" min={1} required value={unitPrice || ''} onChange={e => setUnitPrice(Number(e.target.value))} style={inp} />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Payment Method</label>
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        {['cash', 'easypaisa', 'jazzcash'].map(m => (
-                                            <MethodToggle key={m} method={m} selected={payMethod === m} onSelect={() => setPayMethod(m)} />
-                                        ))}
-                                    </div>
-                                </div>
-                                {/* Total */}
-                                <div style={{ background: '#0d0d1a', borderRadius: 10, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(0,255,136,0.12)' }}>
-                                    <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 600 }}>TOTAL</span>
-                                    <span style={{ fontSize: 24, fontWeight: 800, color: '#00ff88', fontVariantNumeric: 'tabular-nums' }}>{fmt(qty * unitPrice)}</span>
-                                </div>
-                                <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-                                    <button type="button" onClick={() => setModal(false)} style={{
-                                        flex: 1, height: 44, borderRadius: 10, border: 'none',
-                                        background: '#1a1a2e', color: '#6b7280', fontSize: 14, fontWeight: 600,
-                                        cursor: 'pointer', fontFamily: 'inherit',
-                                    }}>Cancel</button>
-                                    <button type="submit" disabled={submitting} style={{
-                                        flex: 1, height: 44, borderRadius: 10, border: 'none',
-                                        background: 'linear-gradient(135deg,#00ff88,#00cc6a)', color: '#000',
-                                        fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                                        opacity: submitting ? 0.6 : 1,
-                                    }}>{submitting ? 'Saving...' : 'Save Sale'}</button>
-                                </div>
-                            </form>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                </div>
+            )}
         </div>
     );
 }
