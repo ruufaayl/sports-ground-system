@@ -1,75 +1,99 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { adminFetch } from '../../../lib/adminApi';
+import { useRouter } from 'next/navigation';
+
+const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 function pad2(n: number) { return String(n).padStart(2, '0'); }
-function fmtHour(h: number) { return `${h % 12 || 12}${h >= 12 ? 'PM' : 'AM'}`; }
-function getMonday(d: Date) { const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); return new Date(d.setDate(diff)); }
-function dateStr(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
-function shortDay(d: Date) { return d.toLocaleDateString('en-PK', { weekday: 'short' }); }
-function shortDate(d: Date) { return `${d.getDate()} ${d.toLocaleDateString('en-PK', { month: 'short' })}`; }
+function currentMonth() { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`; }
+function monthLabel(m: string) {
+    const [y, mon] = m.split('-').map(Number);
+    const d = new Date(y, mon - 1, 1);
+    return d.toLocaleDateString('en-PK', { month: 'long', year: 'numeric' }).toUpperCase();
+}
+function shiftMonth(m: string, delta: number) {
+    const [y, mon] = m.split('-').map(Number);
+    const d = new Date(y, mon - 1 + delta, 1);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+}
 
-const GROUNDS = ['G1', 'G2', 'G3', 'G4', 'G5'];
-const HOURS = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
-const CELL_H = 60;
+const GROUND_COLORS: Record<string, string> = {
+    G1: '#8B1A2B', G2: '#C9A84C', G3: '#0088ff', G4: '#8b5cf6', G5: '#00a651',
+};
+const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-interface Booking {
-    booking_ref: string;
-    ground_id: string;
-    date: string;
-    start_time: string;
-    end_time: string;
-    duration_hours: number;
-    customer_name: string;
-    customer_phone: string;
-    base_price: number;
-    booking_status: string;
-    grounds?: { name: string };
+interface DayData {
+    count: number;
+    bookings: Array<Record<string, unknown>>;
+    revenue: number;
 }
 
 export default function CalendarPage() {
-    const [weekStart, setWeekStart] = useState(() => dateStr(getMonday(new Date())));
-    const [bookings, setBookings] = useState<Booking[]>([]);
-    const [tooltip, setTooltip] = useState<{ booking: Booking; x: number; y: number } | null>(null);
+    const router = useRouter();
+    const [month, setMonth] = useState(currentMonth());
+    const [calendarData, setCalendarData] = useState<Record<string, DayData>>({});
+    const [isLoading, setIsLoading] = useState(true);
+    const [tooltip, setTooltip] = useState<{ date: string; data: DayData; x: number; y: number } | null>(null);
 
-    const weekDates = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(weekStart + 'T00:00:00');
-        d.setDate(d.getDate() + i);
-        return d;
-    });
+    const adminSecret = typeof window !== 'undefined' ? localStorage.getItem('adminSecret') || '' : '';
+    const todayDate = `${new Date().getFullYear()}-${pad2(new Date().getMonth() + 1)}-${pad2(new Date().getDate())}`;
 
-    const loadData = useCallback(async () => {
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
         try {
-            const data = await adminFetch<{ bookings: Booking[] }>(`/api/bookings/calendar?week_start=${weekStart}`);
-            setBookings(data.bookings);
+            const res = await fetch(`${BASE}/api/bookings/calendar?month=${month}`, {
+                headers: { 'x-admin-secret': adminSecret },
+            });
+            const data = await res.json();
+            setCalendarData(data.days || {});
         } catch { /* ignore */ }
-    }, [weekStart]);
+        setIsLoading(false);
+    }, [month, adminSecret]);
 
-    useEffect(() => { loadData(); }, [loadData]);
+    useEffect(() => { fetchData(); }, [fetchData]);
 
-    const prevWeek = () => {
-        const d = new Date(weekStart + 'T00:00:00');
-        d.setDate(d.getDate() - 7);
-        setWeekStart(dateStr(d));
-    };
-    const nextWeek = () => {
-        const d = new Date(weekStart + 'T00:00:00');
-        d.setDate(d.getDate() + 7);
-        setWeekStart(dateStr(d));
-    };
-    const thisWeek = () => setWeekStart(dateStr(getMonday(new Date())));
+    // Build calendar grid
+    const [year, mon] = month.split('-').map(Number);
+    const firstDay = new Date(year, mon - 1, 1);
+    const lastDay = new Date(year, mon, 0).getDate();
+    let startDow = firstDay.getDay(); // 0=Sun, 1=Mon
+    startDow = startDow === 0 ? 6 : startDow - 1; // Convert to Mon=0
 
-    // Current time position
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const todayDate = dateStr(now);
-    const isThisWeek = weekDates.some(d => dateStr(d) === todayDate);
+    const weeks: (number | null)[][] = [];
+    let currentWeek: (number | null)[] = Array(startDow).fill(null);
 
-    // Find position of current time in our HOURS array
-    const hourIndex = HOURS.indexOf(currentHour);
-    const timeLineTop = hourIndex >= 0 ? hourIndex * CELL_H + (currentMinute / 60) * CELL_H : -1;
+    for (let d = 1; d <= lastDay; d++) {
+        currentWeek.push(d);
+        if (currentWeek.length === 7) {
+            weeks.push(currentWeek);
+            currentWeek = [];
+        }
+    }
+    if (currentWeek.length > 0) {
+        while (currentWeek.length < 7) currentWeek.push(null);
+        weeks.push(currentWeek);
+    }
+
+    // Month summary
+    const allDays = Object.values(calendarData);
+    const totalBookings = allDays.reduce((s, d) => s + d.count, 0);
+    const totalRevenue = allDays.reduce((s, d) => s + d.revenue, 0);
+    const bestDay = Object.entries(calendarData).reduce((best, [date, data]) =>
+        data.revenue > (best.revenue || 0) ? { date, revenue: data.revenue } : best,
+        { date: '', revenue: 0 }
+    );
+    // Most booked ground
+    const groundCounts: Record<string, number> = {};
+    for (const d of allDays) {
+        for (const b of d.bookings) {
+            const gName = (b.grounds as Record<string, string>)?.name || (b.ground_id as string) || '?';
+            groundCounts[gName] = (groundCounts[gName] || 0) + 1;
+        }
+    }
+    const topGround = Object.entries(groundCounts).sort((a, b) => b[1] - a[1])[0];
+
+    const fmt = (n: number) => Math.round(n).toLocaleString('en-PK');
 
     return (
         <div>
@@ -77,109 +101,154 @@ export default function CalendarPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
                 <h1 style={{ fontFamily: 'var(--font-ui)', fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '0.06em', margin: 0 }}>CALENDAR</h1>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button onClick={prevWeek} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: '#fff', fontSize: 16, padding: '6px 12px', cursor: 'pointer' }}>←</button>
-                    <button onClick={thisWeek} style={{
-                        background: isThisWeek ? '#8B1A2B' : 'transparent',
+                    <button onClick={() => setMonth(shiftMonth(month, -1))} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: '#fff', fontSize: 16, padding: '6px 12px', cursor: 'pointer' }}>←</button>
+                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 18, fontWeight: 700, color: '#fff', letterSpacing: '0.08em', minWidth: 200, textAlign: 'center' }}>
+                        {monthLabel(month)}
+                    </div>
+                    <button onClick={() => setMonth(shiftMonth(month, 1))} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: '#fff', fontSize: 16, padding: '6px 12px', cursor: 'pointer' }}>→</button>
+                    <button onClick={() => setMonth(currentMonth())} style={{
+                        background: month === currentMonth() ? '#8B1A2B' : 'transparent',
                         border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2,
-                        color: '#fff', fontSize: 12, fontWeight: 600, padding: '8px 16px',
+                        color: '#fff', fontSize: 11, fontWeight: 600, padding: '8px 14px', marginLeft: 8,
                         cursor: 'pointer', fontFamily: 'var(--font-ui)', letterSpacing: '0.1em',
-                    }}>THIS WEEK</button>
-                    <button onClick={nextWeek} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: '#fff', fontSize: 16, padding: '6px 12px', cursor: 'pointer' }}>→</button>
+                    }}>THIS MONTH</button>
                 </div>
             </div>
 
             {/* Calendar Grid */}
-            <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
-                {/* Header row */}
-                <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(5, 1fr)', borderBottom: '1px solid rgba(139,26,43,0.2)' }}>
-                    <div style={{ padding: '12px 8px', fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.2em', textAlign: 'center' }}>TIME</div>
-                    {GROUNDS.map(g => (
-                        <div key={g} style={{ padding: '12px 8px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#8B1A2B', textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.04)' }}>{g}</div>
+            <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden', marginBottom: 24, opacity: isLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+                {/* Day headers */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid rgba(139,26,43,0.2)' }}>
+                    {DAYS_OF_WEEK.map(d => (
+                        <div key={d} style={{ padding: '10px 8px', fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)', textAlign: 'center', letterSpacing: '0.15em' }}>{d}</div>
                     ))}
                 </div>
 
-                {/* Time rows */}
-                <div style={{ position: 'relative', overflowY: 'auto', maxHeight: 'calc(100vh - 200px)' }}>
-                    {/* Current time line */}
-                    {isThisWeek && timeLineTop >= 0 && (
-                        <div style={{ position: 'absolute', top: timeLineTop, left: 0, right: 0, zIndex: 10, display: 'flex', alignItems: 'center', pointerEvents: 'none' }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 8px #ef4444', marginLeft: 2, animation: 'pulse-dot 2s infinite' }} />
-                            <div style={{ flex: 1, height: 2, background: '#ef4444', opacity: 0.6 }} />
-                        </div>
-                    )}
+                {/* Weeks */}
+                {weeks.map((week, wi) => (
+                    <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: wi < weeks.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
+                        {week.map((day, di) => {
+                            if (day === null) return <div key={di} style={{ minHeight: 100, background: 'rgba(0,0,0,0.1)' }} />;
 
-                    {HOURS.map((h) => (
-                        <div key={h} style={{ display: 'grid', gridTemplateColumns: '60px repeat(5, 1fr)', height: CELL_H, borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.4)' }}>{fmtHour(h)}</div>
-                            {GROUNDS.map(g => {
-                                // Find booking for this ground on today's selected week for this hour
-                                // We show bookings for the first matching day in the week
-                                const booking = bookings.find(b => {
-                                    const bStart = parseInt(b.start_time.split(':')[0], 10);
-                                    const bEnd = parseInt(b.end_time.split(':')[0], 10);
-                                    return b.ground_id === g && h >= bStart && h < bEnd;
-                                });
-                                const isStart = booking && parseInt(booking.start_time.split(':')[0], 10) === h;
+                            const dateStr = `${month}-${pad2(day)}`;
+                            const dayData = calendarData[dateStr] || { count: 0, bookings: [], revenue: 0 };
+                            const isToday = dateStr === todayDate;
+                            const isPast = dateStr < todayDate;
 
-                                return (
-                                    <div key={g} style={{
-                                        borderLeft: '1px solid rgba(255,255,255,0.04)', position: 'relative',
-                                        background: booking ? 'transparent' : 'rgba(0,166,81,0.02)',
-                                        cursor: booking ? 'default' : 'pointer',
+                            // Ground dots
+                            const groundsInDay: Record<string, number> = {};
+                            for (const b of dayData.bookings) {
+                                const gName = (b.grounds as Record<string, string>)?.name || (b.ground_id as string) || '?';
+                                groundsInDay[gName] = (groundsInDay[gName] || 0) + 1;
+                            }
+
+                            return (
+                                <div
+                                    key={di}
+                                    onClick={() => router.push(`/admin/availability?date=${dateStr}`)}
+                                    onMouseEnter={e => { if (dayData.count > 0) setTooltip({ date: dateStr, data: dayData, x: e.clientX, y: e.clientY }); }}
+                                    onMouseLeave={() => setTooltip(null)}
+                                    style={{
+                                        minHeight: 100, padding: 8, cursor: 'pointer',
+                                        borderRight: di < 6 ? '1px solid rgba(255,255,255,0.03)' : 'none',
+                                        opacity: isPast && !isToday ? 0.6 : 1,
+                                        transition: 'all 0.15s',
+                                        position: 'relative',
                                     }}
-                                        onMouseEnter={(e) => { if (!booking) e.currentTarget.style.background = 'rgba(0,166,81,0.1)'; }}
-                                        onMouseLeave={(e) => { if (!booking) e.currentTarget.style.background = 'rgba(0,166,81,0.02)'; }}
-                                    >
-                                        {isStart && booking && (
-                                            <div
-                                                onMouseEnter={(e) => setTooltip({ booking, x: e.clientX, y: e.clientY })}
-                                                onMouseLeave={() => setTooltip(null)}
-                                                style={{
-                                                    position: 'absolute', top: 2, left: 2, right: 2,
-                                                    height: booking.duration_hours * CELL_H - 4,
-                                                    background: 'linear-gradient(135deg, rgba(139,26,43,0.4), rgba(107,20,34,0.3))',
-                                                    border: '1px solid rgba(139,26,43,0.5)',
-                                                    borderRadius: 3, padding: '4px 6px', overflow: 'hidden',
-                                                    zIndex: 5, cursor: 'pointer',
-                                                }}
-                                            >
-                                                <div style={{ fontFamily: 'var(--font-ui)', fontSize: 11, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{booking.customer_name}</div>
-                                                <div style={{ fontFamily: 'var(--font-ui)', fontSize: 9, color: 'rgba(255,255,255,0.5)' }}>{fmtHour(parseInt(booking.start_time.split(':')[0]))} - {fmtHour(parseInt(booking.end_time.split(':')[0]))}</div>
-                                            </div>
-                                        )}
+                                    onMouseOver={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(139,26,43,0.06)'; }}
+                                    onMouseOut={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+                                >
+                                    {/* Date number */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                        <span style={{
+                                            fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 600,
+                                            color: isToday ? '#fff' : 'rgba(255,255,255,0.7)',
+                                            background: isToday ? '#8B1A2B' : 'transparent',
+                                            borderRadius: '50%', width: isToday ? 28 : 'auto', height: isToday ? 28 : 'auto',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        }}>{day}</span>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    ))}
-                </div>
+
+                                    {/* Booking count */}
+                                    {dayData.count > 0 && (
+                                        <>
+                                            <div style={{
+                                                background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)',
+                                                borderRadius: 8, padding: '1px 6px', fontSize: 9, fontWeight: 600,
+                                                color: '#8B1A2B', fontFamily: 'var(--font-ui)', display: 'inline-block', marginBottom: 4,
+                                            }}>{dayData.count} booking{dayData.count > 1 ? 's' : ''}</div>
+
+                                            {/* Ground dots */}
+                                            <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginBottom: 4 }}>
+                                                {Object.entries(groundsInDay).map(([g, count]) => (
+                                                    Array.from({ length: Math.min(count, 4) }).map((_, ci) => (
+                                                        <div key={`${g}-${ci}`} style={{
+                                                            width: 6, height: 6, borderRadius: '50%',
+                                                            background: GROUND_COLORS[g] || '#8B1A2B',
+                                                        }} />
+                                                    ))
+                                                ))}
+                                            </div>
+
+                                            {/* Revenue */}
+                                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, color: '#C9A84C', fontWeight: 600 }}>
+                                                PKR {fmt(dayData.revenue)}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ))}
+            </div>
+
+            {/* Month Summary Bar */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+                {[
+                    { label: 'TOTAL BOOKINGS', value: String(totalBookings), accent: '#8B1A2B' },
+                    { label: 'TOTAL REVENUE', value: `PKR ${fmt(totalRevenue)}`, accent: '#C9A84C' },
+                    { label: 'BEST DAY', value: bestDay.date ? `${bestDay.date.split('-')[2]}th — PKR ${fmt(bestDay.revenue)}` : '—', accent: '#00a651' },
+                    { label: 'TOP GROUND', value: topGround ? `${topGround[0]} (${topGround[1]})` : '—', accent: '#8b5cf6' },
+                ].map(c => (
+                    <div key={c.label} style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, padding: 16, position: 'relative', overflow: 'hidden' }}>
+                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: c.accent }} />
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>{c.label}</div>
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 18, fontWeight: 700, color: '#fff' }}>{c.value}</div>
+                    </div>
+                ))}
             </div>
 
             {/* Tooltip */}
             {tooltip && (
                 <div style={{
-                    position: 'fixed', left: tooltip.x + 16, top: tooltip.y - 10,
+                    position: 'fixed', left: Math.min(tooltip.x + 16, window.innerWidth - 280), top: tooltip.y - 10,
                     background: '#111218', border: '1px solid #C9A84C',
-                    borderRadius: 4, padding: 16, zIndex: 100, minWidth: 200,
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                    borderRadius: 4, padding: 16, zIndex: 100, minWidth: 240, maxWidth: 300,
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.5)', pointerEvents: 'none',
                 }}>
-                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 8 }}>{tooltip.booking.customer_name}</div>
-                    {[
-                        { l: 'Ref', v: tooltip.booking.booking_ref },
-                        { l: 'Date', v: tooltip.booking.date },
-                        { l: 'Phone', v: tooltip.booking.customer_phone },
-                        { l: 'Duration', v: `${tooltip.booking.duration_hours}hrs` },
-                        { l: 'Amount', v: `PKR ${Math.round(tooltip.booking.base_price).toLocaleString()}` },
-                    ].map(r => (
-                        <div key={r.l} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: '#C9A84C' }}>{r.l}</span>
-                            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: '#fff' }}>{r.v}</span>
+                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 12, fontWeight: 600, color: '#C9A84C', marginBottom: 8 }}>{tooltip.date}</div>
+                    {tooltip.data.bookings.slice(0, 5).map((b, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3, gap: 8 }}>
+                            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{b.customer_name as string}</span>
+                            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 10, color: 'rgba(255,255,255,0.4)', flexShrink: 0 }}>{(b.grounds as Record<string, string>)?.name || b.ground_id as string}</span>
                         </div>
                     ))}
+                    {tooltip.data.bookings.length > 5 && (
+                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 4 }}>+{tooltip.data.bookings.length - 5} more</div>
+                    )}
                 </div>
             )}
 
-            <style>{`@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+            {/* Ground legend */}
+            <div style={{ display: 'flex', gap: 16, marginTop: 16, justifyContent: 'center' }}>
+                {Object.entries(GROUND_COLORS).map(([g, color]) => (
+                    <div key={g} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
+                        <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{g}</span>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }

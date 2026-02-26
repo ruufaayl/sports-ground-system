@@ -12,33 +12,26 @@ function generateBookingRef() {
     return `GS-${num}`;
 }
 
+const pad = (n) => String(n).padStart(2, '0');
+
 // POST /api/bookings/create
 router.post('/create', async (req, res, next) => {
     try {
         console.log('Received booking request:', req.body);
-
         const { groundId, date, startTime, endTime, customerName, customerPhone, teamDetails } = req.body;
 
-        // Validate required fields
         if (!groundId || !date || !startTime || !endTime || !customerName || !customerPhone) {
             return res.status(400).json({
                 error: 'groundId, date, startTime, endTime, customerName, and customerPhone are required',
             });
         }
 
-        // Check availability
         const { available, conflictingBooking } = await checkAvailability(groundId, date, startTime, endTime);
         if (!available) {
-            return res.status(409).json({
-                error: 'Slot not available',
-                conflict: conflictingBooking,
-            });
+            return res.status(409).json({ error: 'Slot not available', conflict: conflictingBooking });
         }
 
-        // Calculate price
         const price = await calculatePrice(groundId, date, startTime, endTime);
-
-        // Generate unique booking ref (retry on collision — very unlikely)
         let bookingRef = generateBookingRef();
 
         // Upsert customer
@@ -55,44 +48,28 @@ router.post('/create', async (req, res, next) => {
                 .eq('phone', customerPhone);
         } else {
             await supabase.from('customers').insert({
-                name: customerName,
-                phone: customerPhone,
-                total_bookings: 1,
+                name: customerName, phone: customerPhone, total_bookings: 1,
             });
         }
 
-        // Insert booking
         const { data: booking, error: insertError } = await supabase
             .from('bookings')
             .insert({
-                booking_ref: bookingRef,
-                ground_id: groundId,
-                date,
-                start_time: startTime,
-                end_time: endTime,
-                customer_name: customerName,
-                customer_phone: customerPhone,
+                booking_ref: bookingRef, ground_id: groundId, date,
+                start_time: startTime, end_time: endTime,
+                customer_name: customerName, customer_phone: customerPhone,
                 team_details: teamDetails || null,
-                duration_hours: price.duration,
-                base_price: price.basePrice,
-                advance_amount: price.advanceAmount,
-                remaining_amount: price.remainingAmount,
-                payment_status: 'pending',
-                booking_status: 'confirmed',
+                duration_hours: price.duration, base_price: price.basePrice,
+                advance_amount: price.advanceAmount, remaining_amount: price.remainingAmount,
+                payment_status: 'pending', booking_status: 'confirmed',
             })
             .select()
             .single();
 
         if (insertError) throw insertError;
 
-        // Get ground name for the WhatsApp message
-        const { data: ground } = await supabase
-            .from('grounds')
-            .select('name')
-            .eq('id', groundId)
-            .single();
+        const { data: ground } = await supabase.from('grounds').select('name').eq('id', groundId).single();
 
-        // Send WhatsApp confirmation
         try {
             await fetch(process.env.BOT_URL || 'http://localhost:3002/send-confirmation', {
                 method: 'POST',
@@ -101,7 +78,6 @@ router.post('/create', async (req, res, next) => {
             });
         } catch (whatsappErr) {
             console.error('WhatsApp notification failed:', whatsappErr.message);
-            // Never fail the booking if WhatsApp fails
         }
 
         res.status(201).json({ booking });
@@ -110,67 +86,58 @@ router.post('/create', async (req, res, next) => {
     }
 });
 
-// GET /api/bookings/today — all bookings for today (Admin only)
+// ═══ FIX 1: GET /api/bookings/today ═══
 router.get('/today', requireAdmin, async (req, res, next) => {
     try {
         const now = new Date();
-        const pad = (n) => String(n).padStart(2, '0');
         const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
         const { data: bookings, error } = await supabase
             .from('bookings')
-            .select(`
-                *,
-                grounds (name)
-            `)
+            .select('*, grounds (name)')
             .eq('date', today)
-            .order('start_time', { ascending: true });
+            .order('created_at', { ascending: false })
+            .limit(20);
 
         if (error) throw error;
-
         res.json({ bookings: bookings || [] });
     } catch (err) {
         next(err);
     }
 });
 
-// GET /api/bookings/all — all bookings with filtering and pagination (Admin only)
+// ═══ FIX 3: GET /api/bookings/all — all filters fixed ═══
 router.get('/all', requireAdmin, async (req, res, next) => {
     try {
         const { date_from, date_to, ground_id, status, payment_status, search, page = 1, limit = 20 } = req.query;
 
         let query = supabase
             .from('bookings')
-            .select(`
-                *,
-                grounds (name)
-            `, { count: 'exact' });
+            .select('*, grounds (name)', { count: 'exact' });
 
-        // Apply filters
         if (date_from) query = query.gte('date', date_from);
         if (date_to) query = query.lte('date', date_to);
 
-        // Support array or single ground_id
+        // Ground filter: support comma-separated string OR array
         if (ground_id) {
-            const ids = Array.isArray(ground_id) ? ground_id : [ground_id];
-            if (ids.length === 1) {
-                query = query.eq('ground_id', ids[0]);
-            } else {
-                query = query.in('ground_id', ids);
+            const raw = Array.isArray(ground_id) ? ground_id : ground_id.split(',').map(s => s.trim()).filter(Boolean);
+            if (raw.length === 1) {
+                query = query.eq('ground_id', raw[0]);
+            } else if (raw.length > 1) {
+                query = query.in('ground_id', raw);
             }
         }
 
-        // Support array or single status
+        // Status filter: support comma-separated string OR array
         if (status) {
-            const statuses = Array.isArray(status) ? status : [status];
-            if (statuses.length === 1) {
-                query = query.eq('booking_status', statuses[0]);
-            } else {
-                query = query.in('booking_status', statuses);
+            const raw = Array.isArray(status) ? status : status.split(',').map(s => s.trim()).filter(Boolean);
+            if (raw.length === 1) {
+                query = query.eq('booking_status', raw[0]);
+            } else if (raw.length > 1) {
+                query = query.in('booking_status', raw);
             }
         }
 
-        // Payment status filter
         if (payment_status) {
             query = query.eq('payment_status', payment_status);
         }
@@ -179,14 +146,12 @@ router.get('/all', requireAdmin, async (req, res, next) => {
             query = query.or(`customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%,booking_ref.ilike.%${search}%`);
         }
 
-        // Apply pagination
-        const from = (page - 1) * limit;
-        const to = from + limit - 1;
+        const from = (Number(page) - 1) * Number(limit);
+        const to = from + Number(limit) - 1;
 
         query = query.order('created_at', { ascending: false }).range(from, to);
 
         const { data: bookings, count, error } = await query;
-
         if (error) throw error;
 
         res.json({
@@ -194,42 +159,56 @@ router.get('/all', requireAdmin, async (req, res, next) => {
             page: Number(page),
             limit: Number(limit),
             total: count || 0,
-            totalPages: Math.ceil((count || 0) / limit),
+            totalPages: Math.ceil((count || 0) / Number(limit)),
         });
     } catch (err) {
         next(err);
     }
 });
 
-// GET /api/bookings/calendar?week_start=YYYY-MM-DD
+// ═══ FIX 4: GET /api/bookings/calendar?month=YYYY-MM ═══
 router.get('/calendar', requireAdmin, async (req, res, next) => {
     try {
-        const { week_start } = req.query;
-        if (!week_start) return res.status(400).json({ error: 'week_start is required' });
+        const { month } = req.query;
+        if (!month) return res.status(400).json({ error: 'month is required (YYYY-MM)' });
 
-        const start = new Date(week_start + 'T00:00:00');
-        const end = new Date(start);
-        end.setDate(end.getDate() + 6);
-        const pad = (n) => String(n).padStart(2, '0');
-        const endStr = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
+        const [year, mon] = month.split('-').map(Number);
+        const startDate = `${month}-01`;
+        const lastDay = new Date(year, mon, 0).getDate();
+        const endDate = `${month}-${pad(lastDay)}`;
 
         const { data: bookings, error } = await supabase
             .from('bookings')
-            .select(`*, grounds (name)`)
-            .gte('date', week_start)
-            .lte('date', endStr)
+            .select('*, grounds (name)')
+            .gte('date', startDate)
+            .lte('date', endDate)
             .neq('booking_status', 'cancelled')
             .order('date', { ascending: true })
             .order('start_time', { ascending: true });
 
         if (error) throw error;
-        res.json({ bookings: bookings || [] });
+
+        // Group by day
+        const days = {};
+        for (let d = 1; d <= lastDay; d++) {
+            const dateStr = `${month}-${pad(d)}`;
+            days[dateStr] = { count: 0, bookings: [], revenue: 0 };
+        }
+        for (const b of (bookings || [])) {
+            if (days[b.date]) {
+                days[b.date].count++;
+                days[b.date].bookings.push(b);
+                days[b.date].revenue += Number(b.base_price || 0);
+            }
+        }
+
+        res.json({ month, days });
     } catch (err) {
         next(err);
     }
 });
 
-// GET /api/bookings/slot-status?ground_id=X&date=YYYY-MM-DD
+// ═══ FIX 2: GET /api/bookings/slot-status ═══
 router.get('/slot-status', requireAdmin, async (req, res, next) => {
     try {
         const { ground_id, date } = req.query;
@@ -245,49 +224,58 @@ router.get('/slot-status', requireAdmin, async (req, res, next) => {
 
         if (error) throw error;
 
-        // Generate hourly slots (0-23)
+        // Generate all 24 hourly slots
         const slots = [];
-        for (let h = 0; h < 24; h++) {
-            const pad = (n) => String(n).padStart(2, '0');
-            const startTime = `${pad(h)}:00:00`;
-            const endTime = `${pad((h + 1) % 24)}:00:00`;
-            const booking = (bookings || []).find(b => {
-                const bStart = parseInt(b.start_time.split(':')[0], 10);
-                const bEnd = parseInt(b.end_time.split(':')[0], 10);
-                return h >= bStart && h < bEnd;
-            });
+        for (let hour = 0; hour < 24; hour++) {
+            const startTime = pad(hour) + ':00';
+            const endTime = pad((hour + 1) % 24) + ':00';
             slots.push({
-                hour: h,
+                hour,
                 startTime,
                 endTime,
-                status: booking ? 'booked' : 'free',
-                booking: booking || null,
+                status: 'available',
+                booking: null,
+                bookingContinues: false,
             });
         }
 
-        res.json({ ground_id, date, slots });
+        // Mark booked slots
+        for (const b of (bookings || [])) {
+            const bStartH = parseInt(b.start_time.split(':')[0], 10);
+            const bEndH = parseInt(b.end_time.split(':')[0], 10);
+            let isFirst = true;
+            for (let h = bStartH; h < bEndH; h++) {
+                if (slots[h]) {
+                    slots[h].status = 'booked';
+                    if (isFirst) {
+                        slots[h].booking = b;
+                        isFirst = false;
+                    } else {
+                        slots[h].bookingContinues = true;
+                        slots[h].booking = b;
+                    }
+                }
+            }
+        }
+
+        res.json({ slots, date, groundId: ground_id, bookings: bookings || [] });
     } catch (err) {
         next(err);
     }
 });
 
-// GET /api/bookings/:bookingRef — booking with ground details
+// GET /api/bookings/:bookingRef
 router.get('/:bookingRef', async (req, res, next) => {
     try {
         const { bookingRef } = req.params;
-
         const { data: booking, error } = await supabase
             .from('bookings')
-            .select(`
-        *,
-        grounds (*)
-      `)
+            .select('*, grounds (*)')
             .eq('booking_ref', bookingRef)
             .single();
 
         if (error) throw error;
         if (!booking) return res.status(404).json({ error: 'Booking not found' });
-
         res.json({ booking });
     } catch (err) {
         next(err);
@@ -313,7 +301,6 @@ router.put('/:bookingRef/confirm-payment', async (req, res, next) => {
 
         if (error) throw error;
         if (!booking) return res.status(404).json({ error: 'Booking not found' });
-
         res.json({ booking });
     } catch (err) {
         next(err);
@@ -325,7 +312,6 @@ router.put('/:bookingRef/cancel', async (req, res, next) => {
     try {
         const { bookingRef } = req.params;
 
-        // Fetch the booking first
         const { data: existing, error: fetchError } = await supabase
             .from('bookings')
             .select('date, start_time, booking_status')
@@ -335,7 +321,6 @@ router.put('/:bookingRef/cancel', async (req, res, next) => {
         if (fetchError) throw fetchError;
         if (!existing) return res.status(404).json({ error: 'Booking not found' });
 
-        // Check cancellation window (must be >24 hrs before booking)
         const bookingDateTime = new Date(`${existing.date}T${existing.start_time}:00`);
         const now = new Date();
         const hoursUntilBooking = (bookingDateTime - now) / (1000 * 60 * 60);
@@ -352,29 +337,23 @@ router.put('/:bookingRef/cancel', async (req, res, next) => {
             .single();
 
         if (updateError) throw updateError;
-
         res.json({ message: 'Booking cancelled successfully', booking });
     } catch (err) {
         next(err);
     }
 });
 
-// GET /api/bookings/customer/:phone — all bookings by customer phone
+// GET /api/bookings/customer/:phone
 router.get('/customer/:phone', async (req, res, next) => {
     try {
         const { phone } = req.params;
-
         const { data: bookings, error } = await supabase
             .from('bookings')
-            .select(`
-        *,
-        grounds (name)
-      `)
+            .select('*, grounds (name)')
             .eq('customer_phone', phone)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
-
         res.json({ bookings: bookings || [] });
     } catch (err) {
         next(err);

@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { adminFetch } from '../../../lib/adminApi';
+
+const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-PK'); }
 function fmtTime(t: string) { if (!t) return ''; const h = parseInt(t.split(':')[0], 10); return `${h % 12 || 12}:00 ${h >= 12 ? 'PM' : 'AM'}`; }
 function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-function weekStart() { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
-function monthStart() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; }
+function yesterdayStr() { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function weekStartStr() { const d = new Date(); const day = d.getDay(); d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+function monthStartStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; }
 
 const STATUS_STYLES: Record<string, { bg: string; border: string; color: string; label: string }> = {
     confirmed: { bg: 'rgba(0,166,81,0.15)', border: 'rgba(0,166,81,0.4)', color: '#00a651', label: '● CONFIRMED' },
@@ -22,66 +24,77 @@ export default function BookingsPage() {
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
+    const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
-    // Filters
-    const [search, setSearch] = useState('');
+    // Filter state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [selectedGrounds, setSelectedGrounds] = useState<string[]>([]);
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
-    const [paymentFilter, setPaymentFilter] = useState('');
-    const [expandedRow, setExpandedRow] = useState<string | null>(null);
+    const [selectedPayment, setSelectedPayment] = useState('');
 
-    const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const adminSecret = typeof window !== 'undefined' ? localStorage.getItem('adminSecret') || '' : '';
 
-    const loadData = useCallback(async () => {
+    // Debounced search
+    const handleSearchInput = (value: string) => {
+        setSearchQuery(value);
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = setTimeout(() => {
+            setDebouncedSearch(value);
+            setPage(1);
+        }, 300);
+    };
+
+    const fetchBookings = useCallback(async () => {
+        setIsLoading(true);
         const params = new URLSearchParams();
-        if (search) params.set('search', search);
+        if (debouncedSearch) params.set('search', debouncedSearch);
         if (dateFrom) params.set('date_from', dateFrom);
         if (dateTo) params.set('date_to', dateTo);
-        selectedGrounds.forEach(g => params.append('ground_id', g));
-        selectedStatuses.forEach(s => params.append('status', s));
-        if (paymentFilter) params.set('payment_status', paymentFilter);
+        if (selectedGrounds.length > 0) params.set('ground_id', selectedGrounds.join(','));
+        if (selectedStatuses.length > 0) params.set('status', selectedStatuses.join(','));
+        if (selectedPayment) params.set('payment_status', selectedPayment);
         params.set('page', String(page));
         params.set('limit', '20');
 
         try {
-            const data = await adminFetch<{ bookings: Array<Record<string, unknown>>; total: number; totalPages: number }>(`/api/bookings/all?${params}`);
-            setBookings(data.bookings);
-            setTotal(data.total);
-            setTotalPages(data.totalPages);
+            const res = await fetch(`${BASE}/api/bookings/all?${params}`, {
+                headers: { 'x-admin-secret': adminSecret },
+            });
+            const data = await res.json();
+            setBookings(data.bookings || []);
+            setTotal(data.total || 0);
+            setTotalPages(data.totalPages || 1);
         } catch { /* ignore */ }
-    }, [search, dateFrom, dateTo, selectedGrounds, selectedStatuses, paymentFilter, page]);
+        setIsLoading(false);
+    }, [debouncedSearch, dateFrom, dateTo, selectedGrounds, selectedStatuses, selectedPayment, page, adminSecret]);
 
-    useEffect(() => { loadData(); }, [loadData]);
+    useEffect(() => { fetchBookings(); }, [fetchBookings]);
 
-    const handleSearchInput = (val: string) => {
-        if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        searchTimeout.current = setTimeout(() => { setSearch(val); setPage(1); }, 300);
-    };
-
-    const toggleGround = (g: string) => {
-        setSelectedGrounds(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
-        setPage(1);
-    };
-    const toggleStatus = (s: string) => {
-        setSelectedStatuses(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
-        setPage(1);
-    };
-
+    const toggleGround = (g: string) => { setSelectedGrounds(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]); setPage(1); };
+    const toggleStatus = (s: string) => { setSelectedStatuses(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]); setPage(1); };
     const setQuickDate = (from: string, to: string) => { setDateFrom(from); setDateTo(to); setPage(1); };
 
     const handleMarkPaid = async (ref: string) => {
-        const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-        await fetch(`${base}/api/bookings/${ref}/confirm-payment`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-secret': localStorage.getItem('adminSecret') || '' }, body: JSON.stringify({ paymentMethod: 'cash' }) });
-        loadData();
+        await fetch(`${BASE}/api/bookings/${ref}/confirm-payment`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'x-admin-secret': adminSecret },
+            body: JSON.stringify({ paymentMethod: 'cash' }),
+        });
+        fetchBookings();
     };
 
     const handleCancel = async (ref: string) => {
         if (!confirm('Cancel this booking?')) return;
-        const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-        await fetch(`${base}/api/bookings/${ref}/cancel`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-secret': localStorage.getItem('adminSecret') || '' } });
-        loadData();
+        await fetch(`${BASE}/api/bookings/${ref}/cancel`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'x-admin-secret': adminSecret },
+        });
+        fetchBookings();
     };
 
     const exportCSV = () => {
@@ -97,15 +110,16 @@ export default function BookingsPage() {
         const a = document.createElement('a'); a.href = url; a.download = `bookings-${todayStr()}.csv`; a.click();
     };
 
-    const totalRevenue = bookings.reduce((sum, b) => sum + Number(b.base_price || 0), 0);
-
-    const pillStyle = (active: boolean) => ({
+    const pillBtn = (active: boolean) => ({
         background: active ? '#8B1A2B' : 'transparent',
         border: `1px solid ${active ? '#8B1A2B' : 'rgba(255,255,255,0.15)'}`,
         borderRadius: 2, color: '#fff', fontSize: 11, fontWeight: 600 as const,
         padding: '5px 12px', cursor: 'pointer' as const, fontFamily: 'var(--font-ui)',
         transition: 'all 0.15s',
     });
+
+    const activeQuickDate = (from: string, to: string) => dateFrom === from && dateTo === to;
+    const totalRevenue = bookings.reduce((sum, b) => sum + Number(b.base_price || 0), 0);
 
     return (
         <div>
@@ -118,36 +132,40 @@ export default function BookingsPage() {
             {/* Filter Bar */}
             <div style={{ background: '#111218', borderRadius: 4, padding: 16, marginBottom: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-                    {/* Search */}
-                    <input placeholder="Search name, phone, ref..." onChange={(e) => handleSearchInput(e.target.value)} style={{
+                    <input placeholder="Search name, phone, ref..." value={searchQuery} onChange={e => handleSearchInput(e.target.value)} style={{
                         background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2,
-                        color: '#fff', fontSize: 13, padding: '8px 14px', fontFamily: 'var(--font-ui)', outline: 'none', minWidth: 200,
+                        color: '#fff', fontSize: 13, padding: '8px 14px', fontFamily: 'var(--font-ui)', outline: 'none', minWidth: 220,
                     }} />
 
-                    {/* Date range */}
-                    <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, color: '#fff', fontSize: 12, padding: '8px 10px', fontFamily: 'var(--font-ui)', outline: 'none', colorScheme: 'dark' }} />
+                    <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} style={{
+                        background: '#111218', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, color: '#fff',
+                        fontSize: 12, padding: '8px 10px', fontFamily: 'var(--font-ui)', outline: 'none', colorScheme: 'dark',
+                    }} />
                     <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>→</span>
-                    <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, color: '#fff', fontSize: 12, padding: '8px 10px', fontFamily: 'var(--font-ui)', outline: 'none', colorScheme: 'dark' }} />
+                    <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} style={{
+                        background: '#111218', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, color: '#fff',
+                        fontSize: 12, padding: '8px 10px', fontFamily: 'var(--font-ui)', outline: 'none', colorScheme: 'dark',
+                    }} />
 
-                    {/* Quick dates */}
-                    <button onClick={() => setQuickDate(todayStr(), todayStr())} style={pillStyle(dateFrom === todayStr() && dateTo === todayStr())}>TODAY</button>
-                    <button onClick={() => setQuickDate(weekStart(), todayStr())} style={pillStyle(dateFrom === weekStart())}>THIS WEEK</button>
-                    <button onClick={() => setQuickDate(monthStart(), todayStr())} style={pillStyle(dateFrom === monthStart())}>THIS MONTH</button>
+                    <button onClick={() => setQuickDate(todayStr(), todayStr())} style={pillBtn(activeQuickDate(todayStr(), todayStr()))}>TODAY</button>
+                    <button onClick={() => setQuickDate(yesterdayStr(), yesterdayStr())} style={pillBtn(activeQuickDate(yesterdayStr(), yesterdayStr()))}>YESTERDAY</button>
+                    <button onClick={() => setQuickDate(weekStartStr(), todayStr())} style={pillBtn(activeQuickDate(weekStartStr(), todayStr()))}>THIS WEEK</button>
+                    <button onClick={() => setQuickDate(monthStartStr(), todayStr())} style={pillBtn(activeQuickDate(monthStartStr(), todayStr()))}>THIS MONTH</button>
                 </div>
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12, alignItems: 'center' }}>
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>GROUND</span>
-                    <button onClick={() => { setSelectedGrounds([]); setPage(1); }} style={pillStyle(selectedGrounds.length === 0)}>ALL</button>
-                    {GROUNDS.map(g => <button key={g} onClick={() => toggleGround(g)} style={pillStyle(selectedGrounds.includes(g))}>{g}</button>)}
+                    <button onClick={() => { setSelectedGrounds([]); setPage(1); }} style={pillBtn(selectedGrounds.length === 0)}>ALL</button>
+                    {GROUNDS.map(g => <button key={g} onClick={() => toggleGround(g)} style={pillBtn(selectedGrounds.includes(g))}>{g}</button>)}
 
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.3)', marginLeft: 16, marginRight: 4 }}>STATUS</span>
-                    <button onClick={() => { setSelectedStatuses([]); setPage(1); }} style={pillStyle(selectedStatuses.length === 0)}>ALL</button>
-                    {['confirmed', 'pending', 'cancelled'].map(s => <button key={s} onClick={() => toggleStatus(s)} style={pillStyle(selectedStatuses.includes(s))}>{s.toUpperCase()}</button>)}
+                    <button onClick={() => { setSelectedStatuses([]); setPage(1); }} style={pillBtn(selectedStatuses.length === 0)}>ALL</button>
+                    {['confirmed', 'pending', 'cancelled'].map(s => <button key={s} onClick={() => toggleStatus(s)} style={pillBtn(selectedStatuses.includes(s))}>{s.toUpperCase()}</button>)}
 
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.3)', marginLeft: 16, marginRight: 4 }}>PAYMENT</span>
-                    <button onClick={() => { setPaymentFilter(''); setPage(1); }} style={pillStyle(!paymentFilter)}>ALL</button>
-                    <button onClick={() => { setPaymentFilter('paid'); setPage(1); }} style={pillStyle(paymentFilter === 'paid')}>PAID</button>
-                    <button onClick={() => { setPaymentFilter('pending'); setPage(1); }} style={pillStyle(paymentFilter === 'pending')}>UNPAID</button>
+                    <button onClick={() => { setSelectedPayment(''); setPage(1); }} style={pillBtn(!selectedPayment)}>ALL</button>
+                    <button onClick={() => { setSelectedPayment('paid'); setPage(1); }} style={pillBtn(selectedPayment === 'paid')}>PAID</button>
+                    <button onClick={() => { setSelectedPayment('pending'); setPage(1); }} style={pillBtn(selectedPayment === 'pending')}>UNPAID</button>
                 </div>
             </div>
 
@@ -161,7 +179,7 @@ export default function BookingsPage() {
             </div>
 
             {/* Table */}
-            <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden', marginBottom: 24 }}>
+            <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden', marginBottom: 24, opacity: isLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
                 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
                         <thead>
@@ -172,7 +190,7 @@ export default function BookingsPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {bookings.length === 0 && <tr><td colSpan={12} style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-ui)' }}>No bookings found</td></tr>}
+                            {bookings.length === 0 && <tr><td colSpan={12} style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-ui)' }}>{isLoading ? 'Loading...' : 'No bookings found'}</td></tr>}
                             {bookings.map((b, i) => {
                                 const st = STATUS_STYLES[(b.booking_status as string)] || STATUS_STYLES.pending;
                                 const gName = (b.grounds as Record<string, string>)?.name || '?';
@@ -180,24 +198,20 @@ export default function BookingsPage() {
                                 const rowNum = (page - 1) * 20 + i + 1;
                                 return (
                                     <><tr key={b.booking_ref as string} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent' }}
-                                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(139,26,43,0.06)'; }}
-                                        onMouseLeave={(e) => { e.currentTarget.style.background = i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent'; }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,26,43,0.06)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent'; }}
                                     >
-                                        <td style={{ padding: '12px 12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{rowNum}</td>
-                                        <td style={{ padding: '12px 12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#C9A84C' }}>{b.booking_ref as string}</td>
-                                        <td style={{ padding: '12px 12px' }}>
-                                            <span style={{ background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#8B1A2B' }}>{gName}</span>
-                                        </td>
-                                        <td style={{ padding: '12px 12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 500, color: '#fff' }}>{b.customer_name as string}</td>
-                                        <td style={{ padding: '12px 12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.customer_phone as string}</td>
-                                        <td style={{ padding: '12px 12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.date as string}</td>
-                                        <td style={{ padding: '12px 12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap' }}>{fmtTime(b.start_time as string)} → {fmtTime(b.end_time as string)}</td>
-                                        <td style={{ padding: '12px 12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.duration_hours as number}h</td>
-                                        <td style={{ padding: '12px 12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(Number(b.base_price))}</td>
-                                        <td style={{ padding: '12px 12px' }}>
-                                            <span style={{ background: st.bg, border: `1px solid ${st.border}`, borderRadius: 12, padding: '2px 8px', fontSize: 10, fontWeight: 600, color: st.color, whiteSpace: 'nowrap' }}>{st.label}</span>
-                                        </td>
-                                        <td style={{ padding: '12px 12px' }}>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{rowNum}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#C9A84C' }}>{b.booking_ref as string}</td>
+                                        <td style={{ padding: '12px' }}><span style={{ background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#8B1A2B' }}>{gName}</span></td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 500, color: '#fff' }}>{b.customer_name as string}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.customer_phone as string}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.date as string}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap' }}>{fmtTime(b.start_time as string)} → {fmtTime(b.end_time as string)}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.duration_hours as number}h</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(Number(b.base_price))}</td>
+                                        <td style={{ padding: '12px' }}><span style={{ background: st.bg, border: `1px solid ${st.border}`, borderRadius: 12, padding: '2px 8px', fontSize: 10, fontWeight: 600, color: st.color, whiteSpace: 'nowrap' }}>{st.label}</span></td>
+                                        <td style={{ padding: '12px' }}>
                                             <span style={{
                                                 background: b.payment_status === 'paid' ? 'rgba(0,166,81,0.15)' : 'rgba(201,168,76,0.15)',
                                                 border: `1px solid ${b.payment_status === 'paid' ? 'rgba(0,166,81,0.4)' : 'rgba(201,168,76,0.4)'}`,
@@ -205,29 +219,20 @@ export default function BookingsPage() {
                                                 color: b.payment_status === 'paid' ? '#00a651' : '#C9A84C',
                                             }}>{(b.payment_status as string).toUpperCase()}</span>
                                         </td>
-                                        <td style={{ padding: '12px 12px' }}>
+                                        <td style={{ padding: '12px' }}>
                                             <div style={{ display: 'flex', gap: 6 }}>
-                                                <button onClick={() => setExpandedRow(isExpanded ? null : b.booking_ref as string)} style={{
-                                                    background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2,
-                                                    color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 600, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)',
-                                                }}>{isExpanded ? 'CLOSE' : 'VIEW'}</button>
+                                                <button onClick={() => setExpandedRow(isExpanded ? null : b.booking_ref as string)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 600, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>{isExpanded ? 'CLOSE' : 'VIEW'}</button>
                                                 {b.payment_status === 'pending' && b.booking_status === 'confirmed' && (
-                                                    <button onClick={() => handleMarkPaid(b.booking_ref as string)} style={{
-                                                        background: 'transparent', border: '1px solid rgba(0,166,81,0.4)', borderRadius: 2,
-                                                        color: '#00a651', fontSize: 10, fontWeight: 600, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)',
-                                                    }}>PAID</button>
+                                                    <button onClick={() => handleMarkPaid(b.booking_ref as string)} style={{ background: 'transparent', border: '1px solid rgba(0,166,81,0.4)', borderRadius: 2, color: '#00a651', fontSize: 10, fontWeight: 600, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>PAID</button>
                                                 )}
                                                 {b.booking_status !== 'cancelled' && (
-                                                    <button onClick={() => handleCancel(b.booking_ref as string)} style={{
-                                                        background: 'transparent', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2,
-                                                        color: '#8B1A2B', fontSize: 10, fontWeight: 600, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)',
-                                                    }}>CANCEL</button>
+                                                    <button onClick={() => handleCancel(b.booking_ref as string)} style={{ background: 'transparent', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2, color: '#8B1A2B', fontSize: 10, fontWeight: 600, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>CANCEL</button>
                                                 )}
                                             </div>
                                         </td>
                                     </tr>
                                         {isExpanded && (
-                                            <tr key={`${b.booking_ref}-expanded`}>
+                                            <tr key={`${b.booking_ref}-exp`}>
                                                 <td colSpan={12} style={{ padding: '16px 24px', background: 'rgba(139,26,43,0.04)', borderBottom: '1px solid rgba(139,26,43,0.15)' }}>
                                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
                                                         <div>
@@ -278,7 +283,7 @@ export default function BookingsPage() {
                         padding: '6px 14px', cursor: page <= 1 ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-ui)',
                     }}>← PREV</button>
                     {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        const start = Math.max(1, page - 2);
+                        const start = Math.max(1, Math.min(page - 2, totalPages - 4));
                         const pg = start + i;
                         if (pg > totalPages) return null;
                         return (
