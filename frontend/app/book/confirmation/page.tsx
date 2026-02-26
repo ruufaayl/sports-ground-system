@@ -105,7 +105,8 @@ function AnimatedCheckmark() {
 }
 
 // ── Letter stagger heading ────────────────────────────────────────────────────
-const HEADING_CHARS = 'BOOKING CONFIRMED'.split('');
+const HEADING_LINE1 = 'BOOKING'.split('');
+const HEADING_LINE2 = 'CONFIRMED'.split('');
 
 export default function ConfirmationPage() {
     const router = useRouter();
@@ -202,8 +203,8 @@ export default function ConfirmationPage() {
 
                 {/* ═══ BOOKING CONFIRMED — letter stagger + shimmer ═══ */}
                 <div style={{ textAlign: 'center', marginBottom: 12, overflow: 'hidden', position: 'relative' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.02em', flexWrap: 'wrap' }}>
-                        {HEADING_CHARS.map((char, i) => (
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.02em' }}>
+                        {HEADING_LINE1.map((char, i) => (
                             <motion.span
                                 key={i}
                                 initial={{ y: 60, opacity: 0 }}
@@ -222,7 +223,31 @@ export default function ConfirmationPage() {
                                     lineHeight: 1,
                                 }}
                             >
-                                {char === ' ' ? '\u00A0' : char}
+                                {char}
+                            </motion.span>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.02em' }}>
+                        {HEADING_LINE2.map((char, i) => (
+                            <motion.span
+                                key={i}
+                                initial={{ y: 60, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{
+                                    duration: 0.5,
+                                    delay: 1.6 + (HEADING_LINE1.length + 1) * 0.04 + i * 0.04,
+                                    ease: [0.22, 1, 0.36, 1],
+                                }}
+                                style={{
+                                    fontFamily: 'var(--font-heading)',
+                                    fontSize: 'clamp(36px, 8vw, 56px)',
+                                    fontWeight: 800,
+                                    color: '#fff',
+                                    display: 'inline-block',
+                                    lineHeight: 1,
+                                }}
+                            >
+                                {char}
                             </motion.span>
                         ))}
                     </div>
