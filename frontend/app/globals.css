@@ -1,188 +1,194 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap');
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Brand Tokens ───────────────────────────────────────────────────────── */
 :root {
-  --bg-primary: #0a0a0f;
-  --bg-card: #1a1a2e;
-  --bg-card-hover: #16213e;
-  --accent-green: #00ff88;
-  --accent-blue: #0088ff;
-  --text-primary: #ffffff;
-  --text-secondary: #888888;
-  --border-green: rgba(0, 255, 136, 0.2);
-  --border-green-hover: rgba(0, 255, 136, 0.6);
-  --glow-green: 0 0 20px rgba(0, 255, 136, 0.3);
-  --glow-green-strong: 0 0 40px rgba(0, 255, 136, 0.5);
-  --glow-blue: 0 0 20px rgba(0, 136, 255, 0.3);
+  /* ─── Color tokens ─── */
+  --crimson: #8B1A2B;
+  --crimson-dark: #6B1422;
+  --crimson-glow: rgba(139, 26, 43, 0.6);
+  --gold: #C9A84C;
+  --gold-light: #E8C96A;
+  --gold-glow: rgba(201, 168, 76, 0.5);
+  --bg: #0D0608;
+  --bg-card: #150A0C;
+  --bg-card-hover: #1f0f13;
+  --white: #FFFFFF;
+  --field-green: #0a1f0a;
+  --field-light: #0d2510;
+  --text-dim: rgba(255, 255, 255, 0.75);
+  --text-muted: rgba(255, 255, 255, 0.55);
   --transition: 0.3s ease;
+
+  /* ─── Font families ─── */
+  --font-hero: 'Bebas Neue', sans-serif;
+  /* page mega-titles only, 80px+ */
+  --font-heading: 'Oswald', sans-serif;
+  /* section headers, 24-48px */
+  --font-ui: 'Montserrat', sans-serif;
+  /* buttons, nav, badges, 12-16px */
+  --font-body: 'Inter', sans-serif;
+  /* paragraphs, descriptions, 14-16px */
+  --font-numbers: 'Rajdhani', sans-serif;
+  /* prices, times, stats */
 }
 
-* {
+/* ─── Reset ──────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
+/* ─── Base ───────────────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
 html,
 body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
+  background-color: var(--bg);
+  color: var(--white);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  cursor: none;
 }
 
-/* ─── Scrollbar ─────────────────────────────────── */
+/* ─── Text Selection ─────────────────────────────────────────────────────── */
+::selection {
+  background: var(--crimson);
+  color: var(--white);
+}
+
+::-moz-selection {
+  background: var(--crimson);
+  color: var(--white);
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+  background: #0a0408;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 255, 136, 0.3);
+  background: var(--crimson);
   border-radius: 3px;
 }
 
-/* ─── Neon Input ─────────────────────────────────── */
-.neon-input {
-  background: rgba(26, 26, 46, 0.8);
-  border: 1px solid var(--border-green);
-  border-radius: 8px;
-  color: #fff;
-  padding: 12px 16px;
-  width: 100%;
-  font-size: 15px;
-  outline: none;
-  transition: border-color var(--transition), box-shadow var(--transition);
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
 }
 
-.neon-input:focus {
-  border-color: var(--accent-green);
-  box-shadow: var(--glow-green);
+/* ─── Typography ─────────────────────────────────────────────────────────── */
+.font-display {
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.05em;
 }
 
-.neon-input::placeholder {
-  color: var(--text-secondary);
+/* ─── Crimson Button ─────────────────────────────────────────────────────── */
+.btn-crimson {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--crimson);
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  color: var(--white);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px;
+  letter-spacing: 0.2em;
+  padding: 16px 40px;
+  cursor: none;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition);
+  box-shadow: 0 0 40px rgba(139, 26, 43, 0.5);
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
-/* ─── Neon Button ────────────────────────────────── */
-.neon-btn {
-  background: linear-gradient(135deg, var(--accent-green), #00cc6a);
-  color: #000;
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 1px;
-  padding: 14px 32px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  transition: box-shadow var(--transition), transform var(--transition);
+.btn-crimson:hover {
+  background: var(--gold);
+  color: var(--crimson-dark);
+  box-shadow: 0 0 50px rgba(201, 168, 76, 0.5);
 }
 
-.neon-btn:hover {
-  box-shadow: var(--glow-green-strong);
-  transform: translateY(-2px);
-}
-
-.neon-btn:disabled {
+.btn-crimson:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-  transform: none;
 }
 
-/* ─── Card ───────────────────────────────────────── */
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-green);
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
-  transition: border-color var(--transition), box-shadow var(--transition);
+/* ─── Floating Label Input ───────────────────────────────────────────────── */
+.float-field {
+  position: relative;
+  margin-bottom: 8px;
 }
 
-.card:hover {
-  border-color: var(--border-green-hover);
-  box-shadow: var(--glow-green);
+.float-field input,
+.float-field textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--white);
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  padding: 24px 0 8px;
+  outline: none;
+  transition: border-color var(--transition);
+  resize: none;
 }
 
-/* ─── Orb Animation ──────────────────────────────── */
-@keyframes orbFloat {
-
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-
-  33% {
-    transform: translate(30px, -40px) scale(1.1);
-  }
-
-  66% {
-    transform: translate(-20px, 20px) scale(0.9);
-  }
+.float-field input:focus,
+.float-field textarea:focus {
+  border-bottom-color: var(--crimson);
 }
 
-@keyframes pulse-glow {
-
-  0%,
-  100% {
-    box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
-  }
-
-  50% {
-    box-shadow: 0 0 40px rgba(0, 255, 136, 0.6);
-  }
+.float-field label {
+  position: absolute;
+  top: 24px;
+  left: 0;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  color: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+  transition: top 0.2s ease, font-size 0.2s ease, color 0.2s ease;
 }
 
-@keyframes float-particle {
-  0% {
-    transform: translateY(100vh) rotate(0deg);
-    opacity: 0;
-  }
-
-  10% {
-    opacity: 1;
-  }
-
-  90% {
-    opacity: 1;
-  }
-
-  100% {
-    transform: translateY(-10vh) rotate(720deg);
-    opacity: 0;
-  }
+.float-field input:focus~label,
+.float-field input:not(:placeholder-shown)~label,
+.float-field textarea:focus~label,
+.float-field textarea:not(:placeholder-shown)~label {
+  top: 4px;
+  font-size: 10px;
+  color: var(--crimson);
 }
 
-@keyframes scanline {
-  0% {
-    transform: translateY(-100%);
-  }
-
-  100% {
-    transform: translateY(100vh);
-  }
+.float-field input::placeholder,
+.float-field textarea::placeholder {
+  color: transparent;
 }
 
-@keyframes checkmark {
-  0% {
-    stroke-dashoffset: 100;
-  }
-
-  100% {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* ─── Step Indicator ─────────────────────────────── */
+/* ─── Step Indicator ─────────────────────────────────────────────────────── */
 .step-indicator {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0;
-  margin-bottom: 40px;
+  margin-bottom: 48px;
 }
 
 .step-item {
@@ -191,46 +197,326 @@ body {
 }
 
 .step-dot {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  border: 1px solid var(--border-green);
-  color: var(--text-secondary);
-  background: var(--bg-card);
-  transition: all var(--transition);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.3);
+  background: transparent;
+  transition: all 0.3s ease;
+  position: relative;
 }
 
 .step-dot.active {
-  background: var(--accent-green);
-  color: #000;
-  border-color: var(--accent-green);
-  box-shadow: var(--glow-green);
+  background: var(--crimson);
+  border-color: var(--gold);
+  color: var(--white);
+  box-shadow: 0 0 20px var(--crimson-glow), 0 0 0 3px rgba(201, 168, 76, 0.2);
 }
 
 .step-dot.done {
-  background: rgba(0, 255, 136, 0.2);
-  color: var(--accent-green);
-  border-color: var(--accent-green);
+  background: rgba(139, 26, 43, 0.3);
+  border-color: var(--crimson);
+  color: var(--gold);
 }
 
 .step-line {
-  width: 60px;
+  width: 56px;
   height: 1px;
-  background: var(--border-green);
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 0.3s ease;
+}
+
+.step-line.done {
+  background: var(--crimson);
 }
 
 .step-label {
-  font-size: 11px;
-  color: var(--text-secondary);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.3);
   text-align: center;
   margin-top: 6px;
 }
 
 .step-label.active {
-  color: var(--accent-green);
+  color: var(--gold);
+}
+
+.step-label.done {
+  color: var(--crimson);
+}
+
+/* ─── Card: dark bg ──────────────────────────────────────────────────────── */
+.card-dark {
+  background: var(--bg-card);
+  border: 1px solid rgba(139, 26, 43, 0.25);
+  border-radius: 12px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.card-dark:hover {
+  border-color: rgba(139, 26, 43, 0.5);
+  box-shadow: 0 0 30px rgba(139, 26, 43, 0.2);
+}
+
+/* ─── Perforated ticket edge ─────────────────────────────────────────────── */
+.ticket-perf {
+  border-right: 2px dashed rgba(201, 168, 76, 0.3);
+}
+
+/* ─── Availability dot ───────────────────────────────────────────────────── */
+.avail-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────── */
+@keyframes float-up {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes pulse-crimson {
+
+  0%,
+  100% {
+    box-shadow: 0 0 30px rgba(139, 26, 43, 0.5);
+  }
+
+  50% {
+    box-shadow: 0 0 60px rgba(139, 26, 43, 0.9);
+  }
+}
+
+@keyframes bounce-down {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(8px);
+  }
+}
+
+@keyframes count-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes gold-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(201, 168, 76, 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 30px rgba(201, 168, 76, 0.7);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes burst {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+/* ─── Neon input (legacy compat) ─────────────────────────────────────────── */
+.neon-input {
+  background: rgba(21, 10, 12, 0.8);
+  border: 1px solid rgba(139, 26, 43, 0.3);
+  border-radius: 8px;
+  color: #fff;
+  padding: 12px 16px;
+  width: 100%;
+  font-size: 15px;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  font-family: 'Inter', sans-serif;
+}
+
+.neon-input:focus {
+  border-color: var(--crimson);
+  box-shadow: 0 0 20px rgba(139, 26, 43, 0.3);
+}
+
+.neon-input::placeholder {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+/* ─── Neon Button (legacy compat) ────────────────────────────────────────── */
+.neon-btn {
+  background: var(--crimson);
+  color: #fff;
+  font-family: 'Bebas Neue', sans-serif;
+  font-weight: 400;
+  font-size: 18px;
+  letter-spacing: 0.15em;
+  padding: 16px 32px;
+  border-radius: 999px;
+  border: 1px solid var(--gold);
+  cursor: none;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+  box-shadow: 0 0 30px rgba(139, 26, 43, 0.4);
+}
+
+.neon-btn:hover {
+  background: var(--gold);
+  color: var(--crimson-dark);
+  box-shadow: 0 0 40px rgba(201, 168, 76, 0.4);
+}
+
+.neon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ─── Roulette Wheel ─────────────────────────────────────────────────────── */
+.roulette-container {
+  position: relative;
+  height: 220px;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+
+.roulette-container::before,
+.roulette-container::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 60px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.roulette-container::before {
+  top: 0;
+  background: linear-gradient(to bottom, var(--bg-card), transparent);
+}
+
+.roulette-container::after {
+  bottom: 0;
+  background: linear-gradient(to top, var(--bg-card), transparent);
+}
+
+.roulette-center-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+  background: rgba(139, 26, 43, 0.12);
+  border-top: 1px solid rgba(139, 26, 43, 0.4);
+  border-bottom: 1px solid rgba(139, 26, 43, 0.4);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ─── Orb glow ───────────────────────────────────────────────────────────── */
+@keyframes orb-float {
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate(20px, -30px) scale(1.05);
+  }
+
+  66% {
+    transform: translate(-15px, 15px) scale(0.95);
+  }
 }

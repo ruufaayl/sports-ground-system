@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { confirmPayment } from '../../../lib/api';
-import { StepIndicator } from '../page';
+import StepIndicator from '../../components/StepIndicator';
+import LogoBadge from '../../components/LogoBadge';
+import { playSelect, playConfirm } from '../../lib/sounds';
 import type { Booking } from '../../../lib/types';
 
 function fmt(n: number) { return Math.round(Number(n)).toLocaleString('en-PK'); }
 
-/** Converts "18:00:00" or "18:00" → "6:00 PM" */
 function formatTime(time: string): string {
     if (!time) return '';
     const [hours, minutes] = time.split(':');
@@ -19,14 +20,16 @@ function formatTime(time: string): string {
     return `${displayHour}:${minutes} ${ampm}`;
 }
 
-function Row({ label, value, big }: { label: string; value: string; big?: boolean }) {
+function TicketRow({ label, value, gold }: { label: string; value: string; gold?: boolean }) {
     return (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(0,255,136,0.08)' }}>
-            <span style={{ color: '#888', fontSize: big ? 15 : 13 }}>{label}</span>
-            <span style={{ color: '#fff', fontWeight: big ? 700 : 500, fontSize: big ? 16 : 14 }}>{value}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '9px 0', borderBottom: '1px solid rgba(139,26,43,0.12)' }}>
+            <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontFamily: "'Inter', sans-serif" }}>{label}</span>
+            <span style={{ color: gold ? '#C9A84C' : '#fff', fontWeight: 500, fontSize: 14, fontFamily: "'Inter', sans-serif" }}>{value}</span>
         </div>
     );
 }
+
+type PaymentMethod = 'easypaisa' | 'jazzcash' | null;
 
 export default function PaymentPage() {
     const router = useRouter();
@@ -35,14 +38,13 @@ export default function PaymentPage() {
     const [pricePerHour, setPricePerHour] = useState<number>(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(null);
 
     useEffect(() => {
         const raw = localStorage.getItem('bookingData');
         if (!raw) { router.push('/book'); return; }
         const b: Booking = JSON.parse(raw);
         setBooking(b);
-
-        // Fix 1: get ground name from localStorage instead of displaying UUID
         const groundRaw = localStorage.getItem('selectedGround');
         if (groundRaw) {
             const g = JSON.parse(groundRaw);
@@ -50,9 +52,6 @@ export default function PaymentPage() {
         } else {
             setGroundName(b.ground_id);
         }
-
-        // Fix 2: get pricePerHour — prefer bookingPrice in localStorage,
-        // fall back to calculating from advance_amount and duration_hours
         const priceRaw = localStorage.getItem('bookingPrice');
         if (priceRaw) {
             const p = JSON.parse(priceRaw);
@@ -66,10 +65,12 @@ export default function PaymentPage() {
         if (!booking) return;
         setLoading(true);
         setError('');
+        playSelect();
         try {
             await confirmPayment(booking.booking_ref, '', 'manual');
             const updated = { ...booking, payment_status: 'paid' };
             localStorage.setItem('bookingData', JSON.stringify(updated));
+            playConfirm();
             router.push('/book/confirmation');
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Payment confirmation failed. Please try again.');
@@ -80,98 +81,218 @@ export default function PaymentPage() {
 
     if (!booking) return null;
 
-    // Fix 3: format times as "6:00 PM → 11:00 PM"
     const timeDisplay = `${formatTime(booking.start_time)} → ${formatTime(booking.end_time)}`;
 
     return (
-        <main style={{ background: '#0a0a0f', minHeight: '100vh', padding: '40px 20px' }}>
-            <div style={{ maxWidth: 620, margin: '0 auto' }}>
+        <main style={{ background: '#0D0608', minHeight: '100vh', padding: '40px 20px 60px' }}>
+            <div style={{ maxWidth: 860, margin: '0 auto' }}>
                 <StepIndicator current={4} />
 
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-                    {/* Booking Ref */}
-                    <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#fff', marginBottom: 8 }}>Complete Payment</h1>
-                        <div style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>Booking Reference</div>
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}
+                >
+                    {/* LEFT: Ticket card */}
+                    <div style={{
+                        background: 'linear-gradient(160deg, #1a0a0d, #150508)',
+                        border: '1px solid rgba(139,26,43,0.35)',
+                        borderRadius: '16px 0 0 16px',
+                        padding: 28,
+                        position: 'relative',
+                    }}>
+                        {/* Perforated right edge */}
                         <div style={{
-                            display: 'inline-block', background: 'rgba(0,255,136,0.1)',
-                            border: '1px solid rgba(0,255,136,0.4)', borderRadius: 10,
-                            padding: '12px 28px', fontSize: 26, fontWeight: 900, color: '#00ff88',
-                            letterSpacing: '3px', boxShadow: '0 0 30px rgba(0,255,136,0.2)',
+                            position: 'absolute',
+                            top: 0,
+                            bottom: 0,
+                            right: -1,
+                            width: 1,
+                            borderRight: '2px dashed rgba(201,168,76,0.25)',
+                        }} />
+
+                        {/* Punch holes */}
+                        {[-1, 1].map((sign, i) => (
+                            <div
+                                key={i}
+                                style={{
+                                    position: 'absolute',
+                                    right: -10,
+                                    top: `calc(50% + ${sign * 60}px)`,
+                                    width: 20,
+                                    height: 20,
+                                    borderRadius: '50%',
+                                    background: '#0D0608',
+                                    border: '1px solid rgba(201,168,76,0.2)',
+                                }}
+                            />
+                        ))}
+
+                        {/* Logo + ref */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                            <LogoBadge size={44} />
+                            <div>
+                                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 11, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.2em' }}>BOOKING REF</div>
+                                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: '#C9A84C', letterSpacing: '0.15em' }}>
+                                    {booking.booking_ref}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* QR placeholder */}
+                        <div style={{
+                            width: '100%',
+                            height: 80,
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px dashed rgba(255,255,255,0.1)',
+                            borderRadius: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: 20,
+                            color: 'rgba(255,255,255,0.2)',
+                            fontSize: 12,
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            letterSpacing: '0.1em',
                         }}>
-                            {booking.booking_ref}
+                            QR CODE
+                        </div>
+
+                        <TicketRow label="Ground" value={groundName} />
+                        <TicketRow label="Date" value={booking.date} />
+                        <TicketRow label="Time" value={timeDisplay} />
+                        <TicketRow label="Duration" value={`${booking.duration_hours} hours`} />
+                        {pricePerHour > 0 && <TicketRow label="Rate" value={`PKR ${fmt(pricePerHour)}/hr`} />}
+                        <TicketRow label="Customer" value={booking.customer_name} />
+                        <TicketRow label="Phone" value={booking.customer_phone} />
+
+                        <div style={{ borderTop: '1px solid rgba(139,26,43,0.25)', marginTop: 16, paddingTop: 16 }}>
+                            <TicketRow label="Total" value={`PKR ${fmt(booking.base_price)}`} />
+                            <TicketRow label="30% Advance" value={`PKR ${fmt(booking.advance_amount)}`} gold />
+                            <TicketRow label="70% At Ground" value={`PKR ${fmt(booking.remaining_amount)}`} />
                         </div>
                     </div>
 
-                    {/* Booking Details */}
-                    <div style={{ background: '#1a1a2e', border: '1px solid rgba(0,255,136,0.2)', borderRadius: 12, padding: 24, marginBottom: 24 }}>
-                        <div style={{ fontSize: 13, color: '#00ff88', letterSpacing: '1px', fontWeight: 600, marginBottom: 16 }}>BOOKING DETAILS</div>
-                        {/* Fix 1: show name, not UUID */}
-                        <Row label="Ground" value={groundName} />
-                        <Row label="Date" value={booking.date} />
-                        {/* Fix 3: formatted time */}
-                        <Row label="Time" value={timeDisplay} />
-                        <Row label="Duration" value={`${booking.duration_hours} hours`} />
-                        {/* Fix 2: pricePerHour from localStorage */}
-                        <Row label="Rate" value={pricePerHour ? `PKR ${fmt(pricePerHour)}/hr` : '—'} />
-                        <Row label="Customer" value={booking.customer_name} />
-                        <Row label="Phone" value={booking.customer_phone} />
-                        <div style={{ marginTop: 16, padding: '14px 0 0' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                <span style={{ color: '#888' }}>Total Amount</span>
-                                <span style={{ color: '#fff', fontWeight: 700 }}>PKR {fmt(booking.base_price)}</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                <span style={{ color: '#888' }}>70% Remaining at Ground</span>
-                                <span style={{ color: '#fff', fontWeight: 600 }}>PKR {fmt(booking.remaining_amount)}</span>
-                            </div>
-                        </div>
-                    </div>
+                    {/* RIGHT: Payment */}
+                    <div style={{ padding: '0 4px' }}>
+                        <h1 style={{
+                            fontFamily: "'Bebas Neue', sans-serif",
+                            fontSize: 'clamp(32px, 5vw, 52px)',
+                            color: '#C9A84C',
+                            letterSpacing: '0.05em',
+                            lineHeight: 1,
+                            marginBottom: 4,
+                        }}>
+                            PAY PKR {fmt(booking.advance_amount)}
+                        </h1>
+                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontFamily: "'Inter', sans-serif", marginBottom: 28 }}>
+                            TO CONFIRM YOUR BOOKING
+                        </p>
 
-                    {/* Payment card */}
-                    <div style={{ background: 'rgba(0,255,136,0.04)', border: '1px solid rgba(0,255,136,0.3)', borderRadius: 12, padding: 28, marginBottom: 24, textAlign: 'center' }}>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: '#00ff88', marginBottom: 8 }}>
-                            Pay PKR {fmt(booking.advance_amount)}
-                        </div>
-                        <div style={{ color: '#888', fontSize: 14, marginBottom: 24 }}>
-                            30% advance to confirm your booking
-                        </div>
-
-                        <div style={{ background: '#1a1a2e', borderRadius: 10, padding: 20, marginBottom: 20, textAlign: 'left' }}>
-                            <div style={{ color: '#888', fontSize: 12, letterSpacing: '1px', marginBottom: 12 }}>TRANSFER TO</div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                                <span style={{ color: '#aaa' }}>📱 EasyPaisa</span>
-                                <span style={{ color: '#00ff88', fontWeight: 700, letterSpacing: '1px' }}>0330-3691303</span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: '#aaa' }}>💜 JazzCash</span>
-                                <span style={{ color: '#00ff88', fontWeight: 700, letterSpacing: '1px' }}>0330-3691303</span>
-                            </div>
-                        </div>
-
-                        <div style={{ color: '#666', fontSize: 12, marginBottom: 24 }}>
-                            Safepay online payment integration coming soon.
+                        {/* Payment method cards */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
+                            {[
+                                {
+                                    id: 'easypaisa' as PaymentMethod,
+                                    label: 'EasyPaisa',
+                                    emoji: '📱',
+                                    number: '0330-3691303',
+                                    bg: 'linear-gradient(135deg, #0d2010, #0a1a0a)',
+                                    border: 'rgba(34,139,34,0.4)',
+                                    accent: '#5cb85c',
+                                },
+                                {
+                                    id: 'jazzcash' as PaymentMethod,
+                                    label: 'JazzCash',
+                                    emoji: '💜',
+                                    number: '0330-3691303',
+                                    bg: 'linear-gradient(135deg, #1a0d2a, #130820)',
+                                    border: 'rgba(148,0,211,0.4)',
+                                    accent: '#b27fd6',
+                                },
+                            ].map((method) => {
+                                const isSelected = selectedMethod === method.id;
+                                return (
+                                    <motion.button
+                                        key={method.id}
+                                        onClick={() => setSelectedMethod(method.id)}
+                                        whileHover={{ scale: 1.02, y: -2 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        style={{
+                                            background: method.bg,
+                                            border: `1px solid ${isSelected ? method.accent : method.border}`,
+                                            borderRadius: 12,
+                                            padding: '20px 24px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            cursor: 'none',
+                                            textAlign: 'left',
+                                            boxShadow: isSelected ? `0 0 20px ${method.border}` : 'none',
+                                            transition: 'border-color 0.2s, box-shadow 0.2s',
+                                        }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                                            <span style={{ fontSize: 28 }}>{method.emoji}</span>
+                                            <div>
+                                                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: '#fff', letterSpacing: '0.1em' }}>
+                                                    {method.label}
+                                                </div>
+                                                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: method.accent, letterSpacing: '0.1em' }}>
+                                                    {method.number}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {isSelected && (
+                                            <div style={{
+                                                width: 24, height: 24, borderRadius: '50%',
+                                                background: method.accent,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: 12, color: '#fff', fontWeight: 700,
+                                            }}>✓</div>
+                                        )}
+                                    </motion.button>
+                                );
+                            })}
                         </div>
 
                         {error && (
-                            <div style={{ background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.4)', borderRadius: 8, padding: '10px 14px', color: '#ff5050', fontSize: 14, marginBottom: 16 }}>
+                            <div style={{
+                                background: 'rgba(231,76,60,0.1)',
+                                border: '1px solid rgba(231,76,60,0.4)',
+                                borderRadius: 8,
+                                padding: '12px 16px',
+                                color: '#e74c3c',
+                                fontSize: 14,
+                                fontFamily: "'Inter', sans-serif",
+                                marginBottom: 16,
+                            }}>
                                 {error}
                             </div>
                         )}
 
-                        <button
-                            className="neon-btn"
-                            disabled={loading}
+                        <motion.button
                             onClick={handlePaid}
-                            style={{ width: '100%', fontSize: 16 }}
+                            disabled={loading}
+                            whileHover={loading ? {} : { scale: 1.02 }}
+                            whileTap={loading ? {} : { scale: 0.98 }}
+                            className="btn-crimson"
+                            style={{ width: '100%', fontSize: 18, padding: '18px', marginBottom: 16 }}
                         >
-                            {loading ? 'CONFIRMING...' : '✓ I HAVE PAID'}
-                        </button>
-                    </div>
+                            {loading ? (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+                                        <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.4)" strokeWidth="3" strokeDasharray="32" strokeDashoffset="12" />
+                                    </svg>
+                                    CONFIRMING...
+                                </span>
+                            ) : '✓ I HAVE PAID'}
+                        </motion.button>
 
-                    <p style={{ textAlign: 'center', color: '#555', fontSize: 13 }}>
-                        You will receive a WhatsApp confirmation after clicking the button.
-                    </p>
+                        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: 12, fontFamily: "'Inter', sans-serif" }}>
+                            Safepay integration coming soon
+                        </p>
+                    </div>
                 </motion.div>
             </div>
         </main>

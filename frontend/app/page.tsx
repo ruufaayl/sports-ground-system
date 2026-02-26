@@ -1,265 +1,402 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import FifaCard from './components/FifaCard';
+import { playSelect, setSoundEnabled, isSoundEnabled } from './lib/sounds';
+
+// ── Field lines canvas ────────────────────────────────────────────────────────
+function FieldLines() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext('2d'); if (!ctx) return;
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+    const w = c.width, h = c.height;
+    const s = 'rgba(139,26,43,0.07)';
+    ctx.strokeStyle = s; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+    ctx.strokeRect(w * 0.1, h * 0.08, w * 0.8, h * 0.84);
+    ctx.beginPath(); ctx.arc(w / 2, h / 2, Math.min(w, h) * 0.12, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(w / 2, h / 2, 3, 0, Math.PI * 2); ctx.fillStyle = s; ctx.fill();
+    const pb = { w: w * 0.4, h: h * 0.18 };
+    ctx.strokeRect((w - pb.w) / 2, h * 0.08, pb.w, pb.h);
+    ctx.strokeRect((w - pb.w) / 2, h * 0.92 - pb.h, pb.w, pb.h);
+    const ca = 30;
+    for (const [cx2, cy2, sa, ea] of [
+      [w * 0.1, h * 0.08, 0, Math.PI / 2],
+      [w * 0.9, h * 0.08, Math.PI / 2, Math.PI],
+      [w * 0.1, h * 0.92, (Math.PI * 3) / 2, Math.PI * 2],
+      [w * 0.9, h * 0.92, Math.PI, (Math.PI * 3) / 2],
+    ] as [number, number, number, number][]) {
+      ctx.beginPath(); ctx.arc(cx2, cy2, ca, sa, ea); ctx.stroke();
+    }
+  }, []);
+  return <canvas ref={ref} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1 }} />;
+}
+
+// ── Player Cards Showcase ─────────────────────────────────────────────────────
+const TOTAL_PLAYERS = 32;
+const POSITIONS: {
+  top?: string; bottom?: string; left?: string; right?: string;
+  rotate: string; scale: number; floatDuration: string; floatDelay: string;
+}[] = [
+    { top: '8%', left: '3%', rotate: '-15deg', scale: 0.85, floatDuration: '3.8s', floatDelay: '0s' },
+    { top: '5%', left: '18%', rotate: '-5deg', scale: 0.9, floatDuration: '4.5s', floatDelay: '0.5s' },
+    { top: '10%', right: '3%', rotate: '15deg', scale: 0.85, floatDuration: '3.2s', floatDelay: '1s' },
+    { top: '5%', right: '18%', rotate: '5deg', scale: 0.9, floatDuration: '5s', floatDelay: '0.8s' },
+    { bottom: '12%', left: '5%', rotate: '-10deg', scale: 0.8, floatDuration: '4.2s', floatDelay: '0.3s' },
+    { bottom: '12%', right: '5%', rotate: '10deg', scale: 0.8, floatDuration: '3.6s', floatDelay: '1.2s' },
+  ];
+
+function pickSix(): number[] {
+  const pool = Array.from({ length: TOTAL_PLAYERS }, (_, i) => i + 1);
+  const picked: number[] = [];
+  while (picked.length < 6) {
+    const idx = Math.floor(Math.random() * pool.length);
+    picked.push(pool.splice(idx, 1)[0]);
+  }
+  return picked;
+}
+
+function PlayerCardsShowcase() {
+  const [playerNums, setPlayerNums] = useState<number[]>([]);
+  const [visible, setVisible] = useState(true);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    setPlayerNums(pickSix());
+    const interval = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setPlayerNums(pickSix());
+        setVisible(true);
+      }, 600);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (playerNums.length === 0) return null;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 5 }} className="hide-mobile">
+      {POSITIONS.map((pos, i) => {
+        const num = playerNums[i];
+        if (!num) return null;
+        const isHovered = hoveredIdx === i;
+        const otherHovered = hoveredIdx !== null && !isHovered;
+        return (
+          <AnimatePresence key={`pos-${i}`}>
+            {visible && (
+              <motion.div
+                initial={{ opacity: 0, y: pos.top ? -40 : 40 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ delay: i * 0.12, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                style={{
+                  position: 'absolute',
+                  pointerEvents: 'auto',
+                  zIndex: isHovered ? 100 : 5,
+                  animation: `float-card-${i % 3} ${pos.floatDuration} ease-in-out ${pos.floatDelay} infinite alternate`,
+                  ...Object.fromEntries(
+                    Object.entries(pos)
+                      .filter(([k]) => ['top', 'bottom', 'left', 'right'].includes(k))
+                  ),
+                }}
+                onMouseEnter={() => setHoveredIdx(i)}
+                onMouseLeave={() => setHoveredIdx(null)}
+              >
+                <div style={{
+                  transform: `rotate(${pos.rotate}) scale(${pos.scale * (isHovered ? 1.15 : 1)})`,
+                  filter: otherHovered ? 'blur(2px) brightness(0.7)' : 'none',
+                  transition: 'transform 0.4s ease, filter 0.3s ease',
+                }}>
+                  <FifaCard
+                    imagePath={`/players/player (${num}).png`}
+                    index={num - 1}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Char heading animation helper ─────────────────────────────────────────────
+const LINE1 = 'THE EXECUTIVE'.split('');
+const LINE2 = 'CHAMPIONS FIELD'.split('');
 
 export default function HomePage() {
   const router = useRouter();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [soundOn, setSoundOn] = useState(true);
 
-  // Particle canvas animation
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    const particles: {
-      x: number; y: number; vx: number; vy: number;
-      size: number; alpha: number; color: string;
-    }[] = [];
-
-    const colors = ['#00ff88', '#0088ff', '#00ff88aa', '#0088ffaa'];
-
-    for (let i = 0; i < 80; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: -Math.random() * 0.8 - 0.2,
-        size: Math.random() * 2 + 0.5,
-        alpha: Math.random(),
-        color: colors[Math.floor(Math.random() * colors.length)],
-      });
-    }
-
-    let animId: number;
-    function draw() {
-      if (!ctx || !canvas) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const p of particles) {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = p.alpha;
-        ctx.fill();
-        p.x += p.vx;
-        p.y += p.vy;
-        p.alpha -= 0.002;
-        if (p.y < -10 || p.alpha <= 0) {
-          p.x = Math.random() * canvas.width;
-          p.y = canvas.height + 10;
-          p.alpha = Math.random() * 0.8 + 0.2;
-        }
-      }
-      ctx.globalAlpha = 1;
-      animId = requestAnimationFrame(draw);
-    }
-    draw();
-
-    const handleResize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', handleResize);
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+  const handleBook = () => { playSelect(); router.push('/book'); };
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    setSoundEnabled(next);
+  };
 
   return (
     <main
-      style={{ background: '#0a0a0f', minHeight: '100vh', position: 'relative', overflow: 'hidden' }}
+      style={{
+        background: 'radial-gradient(ellipse at center, #1a0a0d 0%, #0D0608 70%)',
+        minHeight: '100vh',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
     >
-      {/* Particle canvas */}
-      <canvas
-        ref={canvasRef}
-        style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }}
-      />
+      {/* Field lines */}
+      <FieldLines />
 
-      {/* Animated gradient orbs */}
-      <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1 }}>
-        <div
-          style={{
-            position: 'absolute', width: 600, height: 600,
-            borderRadius: '50%', top: '-200px', left: '-150px',
-            background: 'radial-gradient(circle, rgba(0,255,136,0.12) 0%, transparent 70%)',
-            animation: 'orbFloat 8s ease-in-out infinite',
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute', width: 500, height: 500,
-            borderRadius: '50%', bottom: '-150px', right: '-100px',
-            background: 'radial-gradient(circle, rgba(0,136,255,0.12) 0%, transparent 70%)',
-            animation: 'orbFloat 10s ease-in-out infinite reverse',
-          }}
-        />
-        <div
-          style={{
-            position: 'absolute', width: 400, height: 400,
-            borderRadius: '50%', top: '40%', left: '50%', transform: 'translate(-50%,-50%)',
-            background: 'radial-gradient(circle, rgba(0,255,136,0.06) 0%, transparent 70%)',
-            animation: 'orbFloat 12s ease-in-out infinite 2s',
-          }}
-        />
-      </div>
+      {/* Radial center glow */}
+      <div style={{
+        position: 'fixed', top: '30%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 600, height: 600, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(139,26,43,0.09) 0%, transparent 70%)',
+        pointerEvents: 'none', zIndex: 2,
+      }} />
 
-      {/* Hero content */}
-      <div
+      {/* FIFA player cards around the page */}
+      <PlayerCardsShowcase />
+
+      {/* Sound toggle */}
+      <button
+        onClick={toggleSound}
         style={{
-          position: 'relative', zIndex: 10,
-          minHeight: '100vh', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center',
-          padding: '40px 20px',
-          textAlign: 'center',
+          position: 'fixed', top: 20, right: 24, zIndex: 1000,
+          background: 'rgba(139,26,43,0.2)',
+          border: '1px solid rgba(201,168,76,0.3)',
+          borderRadius: '50%', width: 44, height: 44,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 18, cursor: 'none', color: '#C9A84C',
+          backdropFilter: 'blur(8px)', transition: 'all 0.2s',
         }}
       >
-        {/* Badge */}
+        {soundOn ? '🔊' : '🔇'}
+      </button>
+
+      {/* ═══ Hero content ═══ */}
+      <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '40px 20px' }}>
+
+        {/* ── REAL LOGO IMAGE ── */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'rgba(0,255,136,0.1)',
-            border: '1px solid rgba(0,255,136,0.3)',
-            borderRadius: 999, padding: '6px 18px', marginBottom: 32,
-          }}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, type: 'spring', stiffness: 120 }}
+          style={{ display: 'flex', justifyContent: 'center', marginBottom: 32 }}
         >
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ff88', display: 'inline-block', boxShadow: '0 0 8px #00ff88' }} />
-          <span style={{ color: '#00ff88', fontSize: 13, fontWeight: 600, letterSpacing: '1px' }}>
-            LIVE — ALL GROUNDS AVAILABLE
-          </span>
+          <img
+            src="/logo.png"
+            alt="The Executive Champions Field"
+            style={{
+              width: 140,
+              height: 'auto',
+              animation: 'spin-slow 20s linear infinite',
+              cursor: 'none',
+              filter: 'drop-shadow(0 4px 20px rgba(139,26,43,0.4))',
+              transition: 'filter 0.3s ease',
+              willChange: 'transform',
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget;
+              el.style.animation = 'spin-slow 3s linear infinite';
+              el.style.filter = 'drop-shadow(0 0 30px rgba(139,26,43,0.8)) drop-shadow(0 0 20px rgba(201,168,76,0.5))';
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget;
+              el.style.animation = 'spin-slow 20s linear infinite';
+              el.style.filter = 'drop-shadow(0 4px 20px rgba(139,26,43,0.4))';
+            }}
+          />
         </motion.div>
 
-        {/* Main heading */}
-        <motion.h1
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1 }}
-          style={{
-            fontSize: 'clamp(48px, 10vw, 96px)',
-            fontWeight: 900,
-            letterSpacing: '-2px',
-            lineHeight: 1.1,
-            marginBottom: 24,
-          }}
-        >
-          <span style={{ color: '#fff' }}>BOOK YOUR</span>
-          <br />
-          <span
-            style={{
-              color: '#00ff88',
-              textShadow: '0 0 40px rgba(0,255,136,0.7), 0 0 80px rgba(0,255,136,0.3)',
-            }}
-          >
-            GROUND
-          </span>
-        </motion.h1>
+        {/* ── Heading line 1: THE EXECUTIVE ── */}
+        <div style={{ overflow: 'hidden', marginBottom: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.01em' }}>
+            {LINE1.map((char, i) => (
+              <motion.span
+                key={i}
+                initial={{ y: 80, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.5 + i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+                style={{
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontSize: 'clamp(52px, 10vw, 120px)',
+                  color: '#FFFFFF',
+                  letterSpacing: '0.1em',
+                  lineHeight: 1,
+                  display: 'inline-block',
+                  willChange: 'transform',
+                  textShadow: '0 0 80px rgba(255,255,255,0.3), 2px 2px 0 rgba(139,26,43,0.5)',
+                }}
+              >
+                {char === ' ' ? '\u00A0' : char}
+              </motion.span>
+            ))}
+          </div>
+        </div>
 
-        {/* Subheading */}
+        {/* ── Heading line 2: CHAMPIONS FIELD ── */}
+        <div style={{ overflow: 'hidden', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.01em' }}>
+            {LINE2.map((char, i) => (
+              <motion.span
+                key={i}
+                initial={{ y: 80, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 1.2 + i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+                style={{
+                  fontFamily: "'Bebas Neue', sans-serif",
+                  fontSize: 'clamp(52px, 10vw, 120px)',
+                  color: '#8B1A2B',
+                  letterSpacing: '0.1em',
+                  lineHeight: 1,
+                  display: 'inline-block',
+                  willChange: 'transform',
+                  textShadow: '0 0 40px rgba(139,26,43,0.8), 0 0 80px rgba(139,26,43,0.4)',
+                }}
+              >
+                {char === ' ' ? '\u00A0' : char}
+              </motion.span>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Tagline ── */}
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.25 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 2.2, duration: 1 }}
           style={{
-            fontSize: 'clamp(16px, 3vw, 22px)',
-            color: '#aaa',
-            marginBottom: 48,
-            maxWidth: 600,
-            lineHeight: 1.6,
+            fontFamily: "'Montserrat', sans-serif",
+            fontSize: 14,
+            fontWeight: 500,
+            letterSpacing: '0.25em',
+            color: 'rgba(255,255,255,0.75)',
+            marginBottom: 44,
+            textTransform: 'uppercase',
           }}
         >
-          5 Premium Grounds &nbsp;•&nbsp; 24/7 Availability &nbsp;•&nbsp; Instant Confirmation
+          5 Premium Grounds &nbsp;•&nbsp; Karachi &nbsp;•&nbsp; 24/7 Open
         </motion.p>
 
-        {/* CTA Button */}
-        <motion.button
+        {/* ── BOOK NOW Button ── */}
+        <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => router.push('/book')}
-          style={{
-            background: 'linear-gradient(135deg, #00ff88, #00cc6a)',
-            color: '#000',
-            fontWeight: 800,
-            fontSize: 18,
-            letterSpacing: '2px',
-            padding: '18px 56px',
-            borderRadius: 10,
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 0 40px rgba(0,255,136,0.5)',
-            marginBottom: 56,
-          }}
+          transition={{ delay: 2.4, duration: 0.6, type: 'spring' }}
         >
-          BOOK NOW →
-        </motion.button>
+          <motion.button
+            onClick={handleBook}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 220,
+              height: 60,
+              background: '#8B1A2B',
+              border: '2px solid #C9A84C',
+              borderRadius: 999,
+              color: '#fff',
+              fontFamily: "'Montserrat', sans-serif",
+              fontWeight: 700,
+              fontSize: 16,
+              letterSpacing: '0.15em',
+              cursor: 'none',
+              boxShadow: '0 0 40px rgba(139,26,43,0.6)',
+              animation: 'pulse-crimson 3s ease-in-out infinite',
+              willChange: 'transform',
+              textTransform: 'uppercase',
+              transition: 'background 0.3s ease, color 0.3s ease, box-shadow 0.3s ease',
+              marginBottom: 56,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#C9A84C';
+              e.currentTarget.style.color = '#6B1422';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#8B1A2B';
+              e.currentTarget.style.color = '#fff';
+            }}
+          >
+            BOOK YOUR GROUND
+          </motion.button>
+        </motion.div>
 
-        {/* Stats row */}
+        {/* Scroll indicator */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 0.6 }}
-          style={{ display: 'flex', gap: 40, flexWrap: 'wrap', justifyContent: 'center' }}
+          transition={{ delay: 3, duration: 1 }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
         >
-          {[
-            { label: 'Grounds', value: '5' },
-            { label: 'Availability', value: '24/7' },
-            { label: 'Rate from', value: 'PKR 2,000/hr' },
-            { label: 'Confirmation', value: 'Instant' },
-          ].map((stat) => (
-            <div key={stat.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: '#00ff88' }}>{stat.value}</div>
-              <div style={{ fontSize: 12, color: '#666', letterSpacing: '1px', marginTop: 4 }}>
-                {stat.label.toUpperCase()}
-              </div>
-            </div>
-          ))}
+          <div style={{
+            width: 20, height: 20,
+            borderBottom: '2px solid rgba(255,255,255,0.4)',
+            borderRight: '2px solid rgba(255,255,255,0.4)',
+            transform: 'rotate(45deg)',
+            animation: 'bounce-down 1.5s ease-in-out infinite',
+          }} />
         </motion.div>
       </div>
 
-      {/* Bottom ticker strip */}
-      <div
-        style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20,
-          background: 'rgba(0,255,136,0.08)',
-          borderTop: '1px solid rgba(0,255,136,0.2)',
-          backdropFilter: 'blur(10px)',
-          overflow: 'hidden', height: 40,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex', alignItems: 'center', height: '100%',
-            animation: 'none',
-            whiteSpace: 'nowrap',
-            padding: '0 20px',
-            gap: 32,
-            color: '#00ff88',
-            fontSize: 13,
-            fontWeight: 600,
-            letterSpacing: '1px',
-          }}
-        >
-          {['G1', 'G2', 'G3', 'G4', 'G5', 'Available 24/7', 'PKR 2,000–4,200/hr',
-            'Full Size & Smaller Grounds', 'WhatsApp Booking', 'Instant Confirmation',
-            'G1', 'G2', 'G3', 'G4', 'G5'].map((item, i) => (
-              <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: 'rgba(0,255,136,0.4)' }}>●</span>
-                {item}
-              </span>
-            ))}
+      {/* ─── Bottom marquee strip ─── */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20,
+        background: 'rgba(13,6,8,0.92)',
+        borderTop: '1px solid rgba(139,26,43,0.5)',
+        backdropFilter: 'blur(12px)',
+        overflow: 'hidden', height: 40,
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', height: '100%',
+          whiteSpace: 'nowrap',
+          animation: 'marquee-scroll 24s linear infinite',
+          willChange: 'transform',
+        }}>
+          {[
+            '★ G1 AVAILABLE', '★ G2 AVAILABLE', '★ G3 AVAILABLE',
+            '★ G4 AVAILABLE', '★ G5 AVAILABLE',
+            '★ 5 PREMIUM GROUNDS', '★ KARACHI, PAKISTAN',
+            '★ 24/7 OPEN', '★ PKR 2000-4200/HR', '★ BOOK NOW',
+            '★ G1 AVAILABLE', '★ G2 AVAILABLE', '★ G3 AVAILABLE',
+            '★ G4 AVAILABLE', '★ G5 AVAILABLE',
+            '★ 5 PREMIUM GROUNDS', '★ KARACHI, PAKISTAN',
+            '★ 24/7 OPEN', '★ PKR 2000-4200/HR', '★ BOOK NOW',
+          ].map((item, i) => (
+            <span key={i} style={{
+              fontFamily: "'Oswald', sans-serif",
+              fontSize: 15,
+              letterSpacing: '0.08em',
+              color: i % 2 === 0 ? 'rgba(255,255,255,0.8)' : 'rgba(201,168,76,0.85)',
+              paddingRight: 28,
+            }}>
+              {item}
+            </span>
+          ))}
         </div>
       </div>
+
+      {/* Mobile hide style */}
+      <style>{`
+        @media (max-width: 768px) { .hide-mobile { display: none !important; } }
+        @keyframes float-card-0 { from { transform: translateY(0); } to { transform: translateY(-12px); } }
+        @keyframes float-card-1 { from { transform: translateY(-6px); } to { transform: translateY(8px); } }
+        @keyframes float-card-2 { from { transform: translateY(-4px); } to { transform: translateY(10px); } }
+      `}</style>
     </main>
   );
 }

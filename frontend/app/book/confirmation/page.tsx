@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import LogoBadge from '../../components/LogoBadge';
+import { playConfirm } from '../../lib/sounds';
 import type { Booking } from '../../../lib/types';
 
 function fmt(n: number) { return Math.round(Number(n)).toLocaleString('en-PK'); }
 
-/** Converts "18:00:00" or "18:00" → "6:00 PM" */
 function formatTime(time: string): string {
     if (!time) return '';
     const [hours, minutes] = time.split(':');
@@ -17,35 +18,47 @@ function formatTime(time: string): string {
     return `${displayHour}:${minutes} ${ampm}`;
 }
 
-// ──────────────────────────────────────────────────────────
-// Confetti particle canvas
-// ──────────────────────────────────────────────────────────
-function Confetti() {
+// ─── Crimson burst particle canvas ───────────────────────────────────────────
+function CelebrationBurst() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+
     useEffect(() => {
-        const canvas = canvasRef.current; if (!canvas) return;
-        const ctx = canvas.getContext('2d'); if (!ctx) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        const colors = ['#00ff88', '#0088ff', '#ffffff', '#ffcc00', '#ff6688'];
-        const particles = Array.from({ length: 120 }, () => ({
-            x: Math.random() * canvas.width,
-            y: -20 - Math.random() * 200,
-            vx: (Math.random() - 0.5) * 4,
-            vy: 2 + Math.random() * 4,
-            size: 4 + Math.random() * 6,
-            color: colors[Math.floor(Math.random() * colors.length)],
-            rotation: Math.random() * 360,
-            rotSpeed: (Math.random() - 0.5) * 6,
-            alpha: 1,
-        }));
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
 
-        let animId: number;
-        function draw() {
+        const colors = ['#8B1A2B', '#C9A84C', '#FFFFFF', '#6B1422', '#E8C96A'];
+        const particles = Array.from({ length: 150 }, (_, i) => {
+            const angle = (i / 150) * Math.PI * 2 + Math.random() * 0.5;
+            const speed = 2 + Math.random() * 8;
+            return {
+                x: cx,
+                y: cy,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 3,
+                size: 3 + Math.random() * 5,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                rotation: Math.random() * 360,
+                rotSpeed: (Math.random() - 0.5) * 8,
+                alpha: 1,
+                gravity: 0.12,
+            };
+        });
+
+        let rafId: number;
+        let frame = 0;
+        const draw = () => {
             if (!ctx || !canvas) return;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
             for (const p of particles) {
+                if (p.alpha <= 0) continue;
                 ctx.save();
                 ctx.translate(p.x, p.y);
                 ctx.rotate((p.rotation * Math.PI) / 180);
@@ -53,22 +66,45 @@ function Confetti() {
                 ctx.fillStyle = p.color;
                 ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.5);
                 ctx.restore();
+
                 p.x += p.vx;
                 p.y += p.vy;
+                p.vy += p.gravity;
+                p.vx *= 0.99;
                 p.rotation += p.rotSpeed;
-                if (p.y > canvas.height) {
-                    p.y = -20;
-                    p.x = Math.random() * canvas.width;
-                    p.alpha = 1;
+
+                if (frame > 60) {
+                    p.alpha -= 0.012;
                 }
-                if (p.y > canvas.height * 0.7) p.alpha -= 0.01;
+
+                // Reset for continuous effect
+                if (p.alpha <= 0 && frame < 180) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 1 + Math.random() * 5;
+                    p.x = cx;
+                    p.y = cy;
+                    p.vx = Math.cos(angle) * speed;
+                    p.vy = Math.sin(angle) * speed - 2;
+                    p.alpha = 0.8;
+                }
             }
-            animId = requestAnimationFrame(draw);
-        }
+
+            frame++;
+            if (frame < 240) {
+                rafId = requestAnimationFrame(draw);
+            }
+        };
         draw();
-        return () => cancelAnimationFrame(animId);
+
+        return () => cancelAnimationFrame(rafId);
     }, []);
-    return <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }} />;
+
+    return (
+        <canvas
+            ref={canvasRef}
+            style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 2 }}
+        />
+    );
 }
 
 export default function ConfirmationPage() {
@@ -81,8 +117,6 @@ export default function ConfirmationPage() {
         if (raw) {
             const b = JSON.parse(raw);
             setBooking(b);
-
-            // Get human readable ground name
             const groundRaw = localStorage.getItem('selectedGround');
             if (groundRaw) {
                 const g = JSON.parse(groundRaw);
@@ -90,75 +124,146 @@ export default function ConfirmationPage() {
             } else {
                 setGroundName(b.ground_id);
             }
+            playConfirm();
         }
     }, []);
 
     return (
-        <main style={{ background: '#0a0a0f', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', position: 'relative', overflow: 'hidden' }}>
-            <Confetti />
+        <main style={{
+            background: '#0D0608',
+            minHeight: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '40px 20px',
+            position: 'relative',
+            overflow: 'hidden',
+        }}>
+            <CelebrationBurst />
 
-            {/* Background orbs */}
-            <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1 }}>
-                <div style={{ position: 'absolute', width: 500, height: 500, borderRadius: '50%', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'radial-gradient(circle, rgba(0,255,136,0.1) 0%, transparent 70%)' }} />
-            </div>
+            {/* Crimson center glow */}
+            <div style={{
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: 500,
+                height: 500,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(139,26,43,0.15) 0%, transparent 70%)',
+                pointerEvents: 'none',
+                zIndex: 1,
+            }} />
 
-            <div style={{ position: 'relative', zIndex: 10, maxWidth: 560, width: '100%' }}>
-                {/* ✓ Checkmark */}
-                <motion.div
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                    style={{ textAlign: 'center', marginBottom: 28 }}
-                >
-                    <div style={{
-                        width: 96, height: 96, borderRadius: '50%', margin: '0 auto 20px',
-                        background: 'rgba(0,255,136,0.15)',
-                        border: '2px solid #00ff88',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 0 60px rgba(0,255,136,0.5)',
-                    }}>
-                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                            <motion.path
-                                d="M10 24 L20 34 L38 14"
-                                stroke="#00ff88" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"
-                                initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
-                                transition={{ duration: 0.8, delay: 0.3 }}
-                            />
-                        </svg>
+            <div style={{ position: 'relative', zIndex: 10, maxWidth: 580, width: '100%' }}>
+
+                {/* Trophy + heading */}
+                <div style={{ textAlign: 'center', marginBottom: 32 }}>
+                    <motion.div
+                        initial={{ scale: 0, opacity: 0, y: -60 }}
+                        animate={{ scale: 1, opacity: 1, y: 0 }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 14, delay: 0.1 }}
+                        style={{ fontSize: 72, marginBottom: 16, display: 'block', lineHeight: 1 }}
+                    >
+                        🏆
+                    </motion.div>
+
+                    <div style={{ overflow: 'hidden' }}>
+                        <motion.h1
+                            initial={{ y: 80, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.3, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+                            style={{
+                                fontFamily: "'Bebas Neue', sans-serif",
+                                fontSize: 'clamp(48px, 10vw, 80px)',
+                                letterSpacing: '0.08em',
+                                lineHeight: 1,
+                                marginBottom: 8,
+                                background: 'linear-gradient(90deg, #FFFFFF 0%, #C9A84C 60%, #E8C96A 100%)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text',
+                            }}
+                        >
+                            BOOKING CONFIRMED!
+                        </motion.h1>
                     </div>
 
-                    <motion.h1
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 }}
-                        style={{ fontSize: 36, fontWeight: 900, color: '#00ff88', textShadow: '0 0 30px rgba(0,255,136,0.5)', marginBottom: 8 }}
+                    <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.7 }}
+                        style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, fontFamily: "'Inter', sans-serif" }}
                     >
-                        BOOKING CONFIRMED!
-                    </motion.h1>
-                    <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
-                        style={{ color: '#888', fontSize: 15 }}>
                         Your ground is reserved. See you on the field! ⚽
                     </motion.p>
-                </motion.div>
+                </div>
 
                 {booking && (
-                    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-                        {/* Booking Ref */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 30 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                    >
+                        {/* Booking ref */}
                         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                            <div style={{ fontSize: 12, color: '#666', letterSpacing: '2px', marginBottom: 8 }}>BOOKING REFERENCE</div>
-                            <div style={{
-                                display: 'inline-block', background: 'rgba(0,255,136,0.1)',
-                                border: '1px solid rgba(0,255,136,0.5)', borderRadius: 10,
-                                padding: '12px 32px', fontSize: 28, fontWeight: 900,
-                                color: '#00ff88', letterSpacing: '4px',
-                                boxShadow: '0 0 30px rgba(0,255,136,0.25)',
-                            }}>
-                                {booking.booking_ref}
+                            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: '0.3em', fontFamily: "'Bebas Neue', sans-serif", marginBottom: 8 }}>
+                                BOOKING REFERENCE
                             </div>
+                            <motion.div
+                                initial={{ scale: 0.8, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                transition={{ delay: 0.6, type: 'spring', stiffness: 200 }}
+                                style={{
+                                    display: 'inline-block',
+                                    background: 'rgba(139,26,43,0.2)',
+                                    border: '1px solid rgba(139,26,43,0.6)',
+                                    borderRadius: 12,
+                                    padding: '14px 36px',
+                                    fontFamily: "'Bebas Neue', sans-serif",
+                                    fontSize: 32,
+                                    color: '#8B1A2B',
+                                    letterSpacing: '0.2em',
+                                    boxShadow: '0 0 40px rgba(139,26,43,0.35)',
+                                }}
+                            >
+                                {booking.booking_ref}
+                            </motion.div>
                         </div>
 
-                        {/* Details card */}
-                        <div style={{ background: '#1a1a2e', border: '1px solid rgba(0,255,136,0.2)', borderRadius: 12, padding: 24, marginBottom: 20 }}>
+                        {/* Ticket card */}
+                        <div style={{
+                            background: 'linear-gradient(150deg, #1a0a0d, #120508)',
+                            border: '1px solid rgba(139,26,43,0.35)',
+                            borderRadius: 16,
+                            padding: 24,
+                            marginBottom: 20,
+                            position: 'relative',
+                            overflow: 'hidden',
+                        }}>
+                            {/* Top decorative stripe */}
+                            <div style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: 3,
+                                background: 'linear-gradient(90deg, #8B1A2B, #C9A84C, #8B1A2B)',
+                            }} />
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                                <LogoBadge size={40} />
+                                <div>
+                                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 14, color: '#C9A84C', letterSpacing: '0.1em' }}>
+                                        THE EXECUTIVE CHAMPIONS FIELD
+                                    </div>
+                                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+                                        Karachi, Pakistan
+                                    </div>
+                                </div>
+                            </div>
+
                             {[
                                 { label: 'Ground', value: groundName },
                                 { label: 'Date', value: booking.date },
@@ -167,30 +272,57 @@ export default function ConfirmationPage() {
                                 { label: 'Customer', value: booking.customer_name },
                                 { label: 'Phone', value: booking.customer_phone },
                             ].map(({ label, value }) => (
-                                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid rgba(0,255,136,0.06)' }}>
-                                    <span style={{ color: '#888', fontSize: 14 }}>{label}</span>
-                                    <span style={{ color: '#fff', fontWeight: 500, fontSize: 14 }}>{value}</span>
+                                <div key={label} style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    padding: '9px 0',
+                                    borderBottom: '1px solid rgba(139,26,43,0.1)',
+                                }}>
+                                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontFamily: "'Inter', sans-serif" }}>{label}</span>
+                                    <span style={{ color: '#fff', fontWeight: 500, fontSize: 14, fontFamily: "'Inter', sans-serif" }}>{value}</span>
                                 </div>
                             ))}
+
+                            <div style={{ marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.2)', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
+                                📸 SAVE SCREENSHOT TO KEEP YOUR TICKET
+                            </div>
                         </div>
 
                         {/* Reminders */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
-                            <div style={{ background: 'rgba(0,136,255,0.08)', border: '1px solid rgba(0,136,255,0.25)', borderRadius: 8, padding: '12px 16px', color: '#60aaff', fontSize: 14 }}>
-                                📱 Your confirmation will be sent to your WhatsApp shortly.
+                            <div style={{
+                                background: 'rgba(139,26,43,0.1)',
+                                border: '1px solid rgba(139,26,43,0.25)',
+                                borderRadius: 10,
+                                padding: '12px 16px',
+                                color: 'rgba(255,255,255,0.7)',
+                                fontSize: 14,
+                                fontFamily: "'Inter', sans-serif",
+                            }}>
+                                📱 Your WhatsApp confirmation is on its way
                             </div>
-                            <div style={{ background: 'rgba(255,204,0,0.08)', border: '1px solid rgba(255,204,0,0.25)', borderRadius: 8, padding: '12px 16px', color: '#ffd700', fontSize: 14 }}>
-                                💰 Remaining PKR {fmt(booking.remaining_amount)} to be paid at the ground.
+                            <div style={{
+                                background: 'rgba(201,168,76,0.08)',
+                                border: '1px solid rgba(201,168,76,0.25)',
+                                borderRadius: 10,
+                                padding: '12px 16px',
+                                color: '#C9A84C',
+                                fontSize: 14,
+                                fontFamily: "'Inter', sans-serif",
+                            }}>
+                                💰 Remaining PKR {fmt(booking.remaining_amount)} to be paid at the ground
                             </div>
                         </div>
 
-                        <button
-                            className="neon-btn"
+                        <motion.button
                             onClick={() => router.push('/book')}
-                            style={{ width: '100%', fontSize: 16 }}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            className="btn-crimson"
+                            style={{ width: '100%', fontSize: 18, padding: '18px' }}
                         >
                             BOOK ANOTHER GROUND →
-                        </button>
+                        </motion.button>
                     </motion.div>
                 )}
             </div>

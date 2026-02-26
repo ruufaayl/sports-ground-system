@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import GlobalCursor from './components/GlobalCursor';
+import ParticleField from './components/ParticleField';
 
 export const metadata: Metadata = {
-  title: 'Sports Ground Booking System',
-  description: '5 Premium Grounds • 24/7 Availability • Instant Confirmation',
+  title: 'The Executive Champions Field — Book Your Ground',
+  description: '5 Premium Football Grounds • Karachi • 24/7 Open • Instant Confirmation',
 };
 
 export default function RootLayout({
@@ -13,15 +15,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body>{children}</body>
+      <body>
+        <GlobalCursor />
+        <ParticleField />
+        {children}
+      </body>
     </html>
   );
 }
