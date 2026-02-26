@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Montserrat:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -26,13 +26,13 @@
   /* ─── Font families ─── */
   --font-hero: 'Bebas Neue', sans-serif;
   /* page mega-titles only, 80px+ */
-  --font-heading: 'Oswald', sans-serif;
+  --font-heading: 'Montserrat', sans-serif;
   /* section headers, 24-48px */
   --font-ui: 'Montserrat', sans-serif;
   /* buttons, nav, badges, 12-16px */
   --font-body: 'Inter', sans-serif;
   /* paragraphs, descriptions, 14-16px */
-  --font-numbers: 'Rajdhani', sans-serif;
+  --font-numbers: 'Montserrat', sans-serif;
   /* prices, times, stats */
 }
 

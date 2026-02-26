@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useCallback } from 'react';
+import Image from 'next/image';
 
 interface FifaCardProps {
     imagePath: string;
@@ -8,25 +9,11 @@ interface FifaCardProps {
     style?: React.CSSProperties;
 }
 
-interface Particle {
-    id: number;
-    x: number;
-    y: number;
-    vx: number;
-    vy: number;
-    size: number;
-    color: string;
-    alpha: number;
-}
-
 export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
     const cardRef = useRef<HTMLDivElement>(null);
     const [tilt, setTilt] = useState({ x: 0, y: 0 });
     const [isHovering, setIsHovering] = useState(false);
     const [shimmerX, setShimmerX] = useState(-100);
-    const [particles, setParticles] = useState<Particle[]>([]);
-    const particleIdRef = useRef(0);
-    const rafRef = useRef<number>(0);
 
     const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         const card = cardRef.current;
@@ -41,69 +28,15 @@ export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
         setShimmerX(shimmer);
     }, []);
 
-    const spawnParticles = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-        const card = cardRef.current;
-        if (!card) return;
-        const rect = card.getBoundingClientRect();
-        const colors = ['#8B1A2B', '#C9A84C', '#E8C96A', '#6B1422', '#fff'];
-        const newParticles: Particle[] = Array.from({ length: 14 }, () => {
-            const angle = Math.random() * Math.PI * 2;
-            const speed = 1.5 + Math.random() * 3;
-            return {
-                id: ++particleIdRef.current,
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 1.5,
-                size: 3 + Math.random() * 4,
-                color: colors[Math.floor(Math.random() * colors.length)],
-                alpha: 1,
-            };
-        });
-        setParticles(newParticles);
-    }, []);
-
-    const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const handleMouseEnter = useCallback(() => {
         setIsHovering(true);
-        spawnParticles(e);
-    }, [spawnParticles]);
+    }, []);
 
     const handleMouseLeave = useCallback(() => {
         setIsHovering(false);
         setTilt({ x: 0, y: 0 });
         setShimmerX(-100);
-        setParticles([]);
     }, []);
-
-    // Animate particles
-    useEffect(() => {
-        if (particles.length === 0) return;
-        let animating = true;
-
-        const animate = () => {
-            if (!animating) return;
-            setParticles(prev => {
-                const updated = prev
-                    .map(p => ({
-                        ...p,
-                        x: p.x + p.vx,
-                        y: p.y + p.vy,
-                        vy: p.vy + 0.1,
-                        vx: p.vx * 0.96,
-                        alpha: p.alpha - 0.025,
-                    }))
-                    .filter(p => p.alpha > 0);
-                if (updated.length === 0) animating = false;
-                return updated;
-            });
-            if (animating) rafRef.current = requestAnimationFrame(animate);
-        };
-        rafRef.current = requestAnimationFrame(animate);
-        return () => {
-            animating = false;
-            cancelAnimationFrame(rafRef.current);
-        };
-    }, [particles.length > 0]);
 
     return (
         <div
@@ -111,6 +44,7 @@ export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
             onMouseMove={handleMouseMove}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
+            className="fifa-card-wrapper"
             style={{
                 width: 180,
                 height: 250,
@@ -159,9 +93,12 @@ export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
                     height: '78%',
                     overflow: 'hidden',
                 }}>
-                    <img
+                    <Image
                         src={imagePath}
                         alt={`Player ${index + 1}`}
+                        width={180}
+                        height={250}
+                        loading="lazy"
                         style={{
                             width: '100%',
                             height: '100%',
@@ -205,7 +142,7 @@ export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
                     zIndex: 2,
                 }}>
                     <div style={{
-                        fontFamily: "'Oswald', sans-serif",
+                        fontFamily: "'Montserrat', sans-serif",
                         fontSize: 16,
                         fontWeight: 700,
                         color: '#C9A84C',
@@ -218,7 +155,7 @@ export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
                         background: 'rgba(201,168,76,0.4)',
                     }} />
                     <div style={{
-                        fontFamily: "'Rajdhani', sans-serif",
+                        fontFamily: "'Montserrat', sans-serif",
                         fontSize: 12,
                         fontWeight: 500,
                         color: 'rgba(255,255,255,0.6)',
@@ -245,25 +182,51 @@ export default function FifaCard({ imagePath, index, style }: FifaCardProps) {
                 }}>★</div>
             </div>
 
-            {/* Particles */}
-            {particles.map(p => (
-                <div
-                    key={p.id}
-                    style={{
-                        position: 'absolute',
-                        left: p.x - p.size / 2,
-                        top: p.y - p.size / 2,
-                        width: p.size,
-                        height: p.size,
-                        borderRadius: '50%',
-                        background: p.color,
-                        opacity: p.alpha,
-                        pointerEvents: 'none',
-                        zIndex: 10,
-                        willChange: 'transform, opacity',
-                    }}
-                />
-            ))}
+            {/* CSS Sparkle effect — 4 corner dots on hover */}
+            {isHovering && (
+                <>
+                    <span className="sparkle sparkle-tl" />
+                    <span className="sparkle sparkle-tr" />
+                    <span className="sparkle sparkle-bl" />
+                    <span className="sparkle sparkle-br" />
+                </>
+            )}
+
+            {/* Sparkle CSS */}
+            <style>{`
+                .sparkle {
+                    position: absolute;
+                    width: 4px;
+                    height: 4px;
+                    border-radius: 50%;
+                    background: #C9A84C;
+                    pointer-events: none;
+                    z-index: 10;
+                    opacity: 0;
+                    animation: sparkle-out 0.6s ease-out forwards;
+                }
+                .sparkle-tl { top: -2px; left: -2px; animation-name: sparkle-tl-out; }
+                .sparkle-tr { top: -2px; right: -2px; animation-name: sparkle-tr-out; }
+                .sparkle-bl { bottom: -2px; left: -2px; animation-name: sparkle-bl-out; }
+                .sparkle-br { bottom: -2px; right: -2px; animation-name: sparkle-br-out; }
+
+                @keyframes sparkle-tl-out {
+                    0% { opacity: 1; transform: translate(0, 0); }
+                    100% { opacity: 0; transform: translate(-12px, -12px); }
+                }
+                @keyframes sparkle-tr-out {
+                    0% { opacity: 1; transform: translate(0, 0); }
+                    100% { opacity: 0; transform: translate(12px, -12px); }
+                }
+                @keyframes sparkle-bl-out {
+                    0% { opacity: 1; transform: translate(0, 0); }
+                    100% { opacity: 0; transform: translate(-12px, 12px); }
+                }
+                @keyframes sparkle-br-out {
+                    0% { opacity: 1; transform: translate(0, 0); }
+                    100% { opacity: 0; transform: translate(12px, 12px); }
+                }
+            `}</style>
         </div>
     );
 }

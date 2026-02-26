@@ -33,7 +33,7 @@ export default function StepIndicator({ current }: StepIndicatorProps) {
                                         ? '1px solid rgba(139,26,43,0.6)'
                                         : '1px solid rgba(255,255,255,0.12)',
                                 color: isActive ? '#fff' : isDone ? '#C9A84C' : 'rgba(255,255,255,0.3)',
-                                fontFamily: "'Oswald', sans-serif",
+                                fontFamily: "'Montserrat', sans-serif",
                                 fontWeight: 700,
                                 fontSize: 18,
                                 boxShadow: isActive

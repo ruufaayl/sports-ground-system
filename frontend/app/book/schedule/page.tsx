@@ -167,7 +167,7 @@ function HourWheel({ selectedIndex, onSelect }: { selectedIndex: number; onSelec
                     return (
                         <div key={i} style={{
                             height: ITEM_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontFamily: "'Oswald', sans-serif",
+                            fontFamily: "'Montserrat', sans-serif",
                             fontSize: dist === 0 ? 40 : dist === 1 ? 26 : 20,
                             fontWeight: dist === 0 ? 700 : 400,
                             color: dist === 0 ? '#fff' : '#888',
@@ -216,7 +216,7 @@ function DurationGrid({ value, onChange }: { value: number; onChange: (v: number
                         }}
                     >
                         <div style={{
-                            fontFamily: "'Rajdhani', sans-serif",
+                            fontFamily: "'Montserrat', sans-serif",
                             fontSize: 28,
                             fontWeight: 700,
                             color: active ? '#fff' : 'rgba(255,255,255,0.8)',
@@ -317,10 +317,10 @@ function ScheduleInner() {
                                 background: 'rgba(139,26,43,0.15)', border: '1px solid rgba(139,26,43,0.4)',
                                 borderRadius: 999, padding: '6px 20px', marginBottom: 16,
                             }}>
-                                <span style={{ fontFamily: "'Oswald', sans-serif", color: '#C9A84C', letterSpacing: '0.1em', fontSize: 15, fontWeight: 600 }}>{groundName}</span>
+                                <span style={{ fontFamily: "'Montserrat', sans-serif", color: '#C9A84C', letterSpacing: '0.1em', fontSize: 15, fontWeight: 600 }}>{groundName}</span>
                             </div>
                         )}
-                        <h1 style={{ fontFamily: "'Oswald', sans-serif", fontSize: 'clamp(28px, 5vw, 44px)', fontWeight: 700, color: '#fff', letterSpacing: '0.05em' }}>
+                        <h1 style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 'clamp(28px, 5vw, 44px)', fontWeight: 700, color: '#fff', letterSpacing: '0.05em' }}>
                             SELECT YOUR SLOT
                         </h1>
                     </div>
@@ -348,7 +348,7 @@ function ScheduleInner() {
                                             <div style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', background: '#C9A84C', color: '#0D0608', fontSize: 8, fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: '0.05em', borderRadius: 3, padding: '1px 5px', whiteSpace: 'nowrap' }}>TODAY</div>
                                         )}
                                         <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 2, fontFamily: "'Inter', sans-serif" }}>{d.day}</div>
-                                        <div style={{ fontSize: 22, fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, lineHeight: 1 }}>{d.num}</div>
+                                        <div style={{ fontSize: 22, fontFamily: "'Montserrat', sans-serif", fontWeight: 700, lineHeight: 1 }}>{d.num}</div>
                                         <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2, fontFamily: "'Inter', sans-serif" }}>{d.month}</div>
                                     </button>
                                 );
@@ -411,7 +411,7 @@ function ScheduleInner() {
                         }}
                     >
                         <div style={{
-                            fontFamily: "'Rajdhani', sans-serif",
+                            fontFamily: "'Montserrat', sans-serif",
                             fontSize: 'clamp(24px, 6vw, 36px)',
                             fontWeight: 700,
                             background: 'linear-gradient(90deg, #8B1A2B, #ffffff)',
@@ -423,7 +423,7 @@ function ScheduleInner() {
                         }}>
                             {startDisplay} → {endDisplay}
                         </div>
-                        <div style={{ fontFamily: "'Oswald', sans-serif", fontSize: 16, fontWeight: 600, color: '#C9A84C', letterSpacing: '0.1em', marginTop: 6 }}>
+                        <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 16, fontWeight: 600, color: '#C9A84C', letterSpacing: '0.1em', marginTop: 6 }}>
                             {duration} {duration === 1 ? 'HOUR' : 'HOURS'}
                         </div>
                     </motion.div>
@@ -467,13 +467,13 @@ function ScheduleInner() {
                                     ].map(({ label, value, gold }) => (
                                         <div key={label} style={{ padding: 12, borderBottom: '1px solid rgba(139,26,43,0.1)' }}>
                                             <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.5)', marginBottom: 4 }}>{label}</div>
-                                            <div style={{ fontFamily: "'Rajdhani', sans-serif", fontSize: 20, fontWeight: 700, color: gold ? '#C9A84C' : '#fff', letterSpacing: '0.02em' }}>{value}</div>
+                                            <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 20, fontWeight: 700, color: gold ? '#C9A84C' : '#fff', letterSpacing: '0.02em' }}>{value}</div>
                                         </div>
                                     ))}
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px' }}>
                                     <span style={{ fontFamily: "'Inter', sans-serif", color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>At ground (70%)</span>
-                                    <span style={{ fontFamily: "'Rajdhani', sans-serif", color: 'rgba(255,255,255,0.8)', fontSize: 18, fontWeight: 600 }}>PKR {fmt(price.remainingAmount)}</span>
+                                    <span style={{ fontFamily: "'Montserrat', sans-serif", color: 'rgba(255,255,255,0.8)', fontSize: 18, fontWeight: 600 }}>PKR {fmt(price.remainingAmount)}</span>
                                 </div>
                                 <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, fontFamily: "'Inter', sans-serif", padding: '0 12px' }}>{price.dayType} · {price.slotType} pricing</div>
                             </motion.div>
@@ -514,7 +514,7 @@ function ScheduleInner() {
 export default function SchedulePage() {
     return (
         <Suspense fallback={
-            <div style={{ background: '#0D0608', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8B1A2B', fontFamily: "'Oswald', sans-serif", fontSize: 24, letterSpacing: '0.2em' }}>
+            <div style={{ background: '#0D0608', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8B1A2B', fontFamily: "'Montserrat', sans-serif", fontSize: 24, letterSpacing: '0.2em' }}>
                 LOADING...
             </div>
         }>

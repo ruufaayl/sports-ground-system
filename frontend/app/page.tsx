@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import FifaCard from './components/FifaCard';
 import { playSelect, setSoundEnabled, isSoundEnabled } from './lib/sounds';
 
@@ -37,7 +38,7 @@ function FieldLines() {
   return <canvas ref={ref} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1 }} />;
 }
 
-// ── Player Cards Showcase ─────────────────────────────────────────────────────
+// ── Player Cards Showcase (4 cards only) ──────────────────────────────────────
 const TOTAL_PLAYERS = 32;
 const POSITIONS: {
   top?: string; bottom?: string; left?: string; right?: string;
@@ -47,14 +48,12 @@ const POSITIONS: {
     { top: '5%', left: '18%', rotate: '-5deg', scale: 0.9, floatDuration: '4.5s', floatDelay: '0.5s' },
     { top: '10%', right: '3%', rotate: '15deg', scale: 0.85, floatDuration: '3.2s', floatDelay: '1s' },
     { top: '5%', right: '18%', rotate: '5deg', scale: 0.9, floatDuration: '5s', floatDelay: '0.8s' },
-    { bottom: '12%', left: '5%', rotate: '-10deg', scale: 0.8, floatDuration: '4.2s', floatDelay: '0.3s' },
-    { bottom: '12%', right: '5%', rotate: '10deg', scale: 0.8, floatDuration: '3.6s', floatDelay: '1.2s' },
   ];
 
-function pickSix(): number[] {
+function pickFour(): number[] {
   const pool = Array.from({ length: TOTAL_PLAYERS }, (_, i) => i + 1);
   const picked: number[] = [];
-  while (picked.length < 6) {
+  while (picked.length < 4) {
     const idx = Math.floor(Math.random() * pool.length);
     picked.push(pool.splice(idx, 1)[0]);
   }
@@ -67,14 +66,14 @@ function PlayerCardsShowcase() {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    setPlayerNums(pickSix());
+    setPlayerNums(pickFour());
     const interval = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
-        setPlayerNums(pickSix());
+        setPlayerNums(pickFour());
         setVisible(true);
       }, 600);
-    }, 30000);
+    }, 60000); // 60 seconds instead of 30
     return () => clearInterval(interval);
   }, []);
 
@@ -88,39 +87,34 @@ function PlayerCardsShowcase() {
         const isHovered = hoveredIdx === i;
         const otherHovered = hoveredIdx !== null && !isHovered;
         return (
-          <AnimatePresence key={`pos-${i}`}>
-            {visible && (
-              <motion.div
-                initial={{ opacity: 0, y: pos.top ? -40 : 40 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ delay: i * 0.12, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                style={{
-                  position: 'absolute',
-                  pointerEvents: 'auto',
-                  zIndex: isHovered ? 100 : 5,
-                  animation: `float-card-${i % 3} ${pos.floatDuration} ease-in-out ${pos.floatDelay} infinite alternate`,
-                  ...Object.fromEntries(
-                    Object.entries(pos)
-                      .filter(([k]) => ['top', 'bottom', 'left', 'right'].includes(k))
-                  ),
-                }}
-                onMouseEnter={() => setHoveredIdx(i)}
-                onMouseLeave={() => setHoveredIdx(null)}
-              >
-                <div style={{
-                  transform: `rotate(${pos.rotate}) scale(${pos.scale * (isHovered ? 1.15 : 1)})`,
-                  filter: otherHovered ? 'blur(2px) brightness(0.7)' : 'none',
-                  transition: 'transform 0.4s ease, filter 0.3s ease',
-                }}>
-                  <FifaCard
-                    imagePath={`/players/player (${num}).png`}
-                    index={num - 1}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div
+            key={`pos-${i}`}
+            style={{
+              position: 'absolute',
+              pointerEvents: 'auto',
+              zIndex: isHovered ? 100 : 5,
+              animation: `float-card-${i % 3} ${pos.floatDuration} ease-in-out ${pos.floatDelay} infinite alternate`,
+              opacity: visible ? 1 : 0,
+              transition: 'opacity 0.5s ease',
+              ...Object.fromEntries(
+                Object.entries(pos)
+                  .filter(([k]) => ['top', 'bottom', 'left', 'right'].includes(k))
+              ),
+            }}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx(null)}
+          >
+            <div style={{
+              transform: `rotate(${pos.rotate}) scale(${pos.scale * (isHovered ? 1.15 : 1)})`,
+              filter: otherHovered ? 'blur(2px) brightness(0.7)' : 'none',
+              transition: 'transform 0.4s ease, filter 0.3s ease',
+            }}>
+              <FifaCard
+                imagePath={`/players/player (${num}).png`}
+                index={num - 1}
+              />
+            </div>
+          </div>
         );
       })}
     </div>
@@ -378,8 +372,9 @@ export default function HomePage() {
             '★ 24/7 OPEN', '★ PKR 2000-4200/HR', '★ BOOK NOW',
           ].map((item, i) => (
             <span key={i} style={{
-              fontFamily: "'Oswald', sans-serif",
+              fontFamily: "'Montserrat', sans-serif",
               fontSize: 15,
+              fontWeight: 600,
               letterSpacing: '0.08em',
               color: i % 2 === 0 ? 'rgba(255,255,255,0.8)' : 'rgba(201,168,76,0.85)',
               paddingRight: 28,
