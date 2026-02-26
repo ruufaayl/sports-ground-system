@@ -24,7 +24,7 @@ app.use(
             'http://localhost:3000',
             'http://localhost:3001',
             'http://165.245.191.201:3001',
-            'https://sports-ground-system.vercel.app',
+            'https://executivechampionsfield.vercel.app',
             process.env.FRONTEND_URL,
         ].filter(Boolean),
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
