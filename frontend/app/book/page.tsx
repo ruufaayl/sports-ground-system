@@ -232,7 +232,14 @@ export default function BookPage() {
     };
 
     return (
-        <main style={{ background: '#0D0608', minHeight: '100vh', padding: '40px 20px 80px', position: 'relative' }}>
+        <main className="book-page-main" style={{ background: '#0D0608', minHeight: '100vh', padding: '40px 20px 80px', position: 'relative' }}>
+            <style>{`
+                @media (max-width: 767px) {
+                    .book-page-main {
+                        padding-bottom: 100px !important;
+                    }
+                }
+            `}</style>
             <div style={{ maxWidth: 960, margin: '0 auto', position: 'relative', zIndex: 1 }}>
                 <StepIndicator current={1} />
 
@@ -262,10 +269,10 @@ export default function BookPage() {
                     ))}
                 </div>
 
-                {/* Continue — futuristic button */}
+                {/* Continue — futuristic button (desktop only) */}
                 <AnimatePresence>
                     {selectedId && (
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} style={{ display: 'flex', justifyContent: 'center' }}>
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="desktop-continue" style={{ display: 'flex', justifyContent: 'center' }}>
                             <button onClick={handleContinue} className="btn-futuristic" style={{ width: 260 }}>
                                 CONTINUE
                                 <span className="btn-arrow">→</span>
@@ -274,6 +281,50 @@ export default function BookPage() {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Mobile fixed bottom bar */}
+            <AnimatePresence>
+                {selectedId && (
+                    <motion.div
+                        initial={{ y: '100%' }}
+                        animate={{ y: 0 }}
+                        exit={{ y: '100%' }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                        className="mobile-bottom-bar"
+                        style={{
+                            position: 'fixed',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            background: 'rgba(13, 6, 8, 0.95)',
+                            backdropFilter: 'blur(10px)',
+                            WebkitBackdropFilter: 'blur(10px)',
+                            borderTop: '1px solid rgba(139,26,43,0.3)',
+                            padding: '16px 24px',
+                            zIndex: 50,
+                            display: 'none',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <button onClick={handleContinue} className="btn-futuristic" style={{ width: '100%', maxWidth: 360 }}>
+                            CONTINUE
+                            <span className="btn-arrow">→</span>
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Mobile responsive styles */}
+            <style>{`
+                @media (max-width: 767px) {
+                    .desktop-continue {
+                        display: none !important;
+                    }
+                    .mobile-bottom-bar {
+                        display: flex !important;
+                    }
+                }
+            `}</style>
         </main>
     );
 }
