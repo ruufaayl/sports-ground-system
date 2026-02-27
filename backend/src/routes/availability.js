@@ -101,4 +101,50 @@ router.get('/:groundId/:date', async (req, res, next) => {
     }
 });
 
+// GET /api/availability/ground-slots — PUBLIC (no auth), no customer data exposed
+router.get('/ground-slots', async (req, res) => {
+    try {
+        const { ground_id, date } = req.query;
+        if (!ground_id || !date) return res.status(400).json({ error: 'ground_id and date are required' });
+
+        const { data: bookings, error } = await supabase
+            .from('bookings')
+            .select('start_time, end_time')
+            .eq('ground_id', ground_id)
+            .eq('date', date)
+            .neq('booking_status', 'cancelled');
+
+        if (error) throw error;
+
+        // Generate hourly slots (0-23)
+        const slots = [];
+        for (let hour = 0; hour < 24; hour++) {
+            slots.push({
+                hour,
+                startTime: hour.toString().padStart(2, '0') + ':00',
+                endTime: ((hour + 1) % 24).toString().padStart(2, '0') + ':00',
+                available: true,
+            });
+        }
+
+        // Mark booked slots
+        for (const b of (bookings || [])) {
+            const bookingStart = parseInt(b.start_time.split(':')[0], 10);
+            const bookingEnd = parseInt(b.end_time.split(':')[0], 10);
+            let endAdj = bookingEnd;
+            if (bookingEnd <= bookingStart) endAdj = bookingEnd + 24;
+
+            for (let h = bookingStart; h < endAdj; h++) {
+                const idx = h % 24;
+                if (slots[idx]) slots[idx].available = false;
+            }
+        }
+
+        res.json({ slots, date, groundId: ground_id });
+    } catch (err) {
+        console.error('ground-slots error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

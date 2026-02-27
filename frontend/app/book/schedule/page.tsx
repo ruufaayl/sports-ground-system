@@ -12,6 +12,13 @@ const HOURS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const DURATIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const ITEM_HEIGHT = 50;
 
+interface AvailSlot {
+    hour: number;
+    available: boolean;
+    startTime?: string;
+    endTime?: string;
+}
+
 function addHours(hour24: number, durationHours: number): string {
     const endH = (hour24 + durationHours) % 24;
     return `${String(endH).padStart(2, '0')}:00`;
@@ -24,9 +31,10 @@ function fmt24to12(hour24: number): string {
 }
 
 function genDays(count = 14) {
-    const days: { label: string; day: string; num: string; month: string }[] = [];
+    const days: { label: string; day: string; num: string; month: string; fullDay: string }[] = [];
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const FULL_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const MON_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     for (let i = 0; i < count; i++) {
         const d = new Date(today);
@@ -34,6 +42,7 @@ function genDays(count = 14) {
         days.push({
             label: d.toISOString().split('T')[0],
             day: DAY_NAMES[d.getDay()],
+            fullDay: FULL_DAY_NAMES[d.getDay()],
             num: String(d.getDate()).padStart(2, '0'),
             month: MON_NAMES[d.getMonth()],
         });
@@ -43,13 +52,113 @@ function genDays(count = 14) {
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-PK'); }
 
+function getMaxDuration(startHour24: number, bookedSlots: AvailSlot[]): number {
+    for (let i = 1; i <= 12; i++) {
+        const checkHour = (startHour24 + i) % 24;
+        const slot = bookedSlots.find(s => s.hour === checkHour);
+        if (slot && !slot.available) return i;
+    }
+    return 12;
+}
+
 type PriceResult = {
     duration: number; pricePerHour: number; basePrice: number;
     advanceAmount: number; remainingAmount: number; dayType: string; slotType: string;
 };
 
+// ── Availability Timeline (interactive schedule bar) ──────────────────────────
+function AvailabilityTimeline({
+    slots, selectedHour24, onHourClick, loading, isToday,
+}: {
+    slots: AvailSlot[]; selectedHour24: number;
+    onHourClick: (hour: number) => void; loading: boolean; isToday: boolean;
+}) {
+    const hoursToShow = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+    const currentHour = new Date().getHours();
+    const [hoverHour, setHoverHour] = useState<number | null>(null);
+
+    if (loading) {
+        return (
+            <div style={{ height: 16, borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
+                <div style={{
+                    height: '100%', background: 'linear-gradient(90deg, rgba(139,26,43,0.1), rgba(139,26,43,0.2), rgba(139,26,43,0.1))',
+                    backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite',
+                }} />
+                <style>{`@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <div style={{
+                display: 'flex', gap: 2, height: 16,
+                borderRadius: 6, overflow: 'hidden',
+            }}>
+                {hoursToShow.map(hour => {
+                    const slot = slots.find(s => s.hour === hour);
+                    const isPast = isToday && hour < currentHour;
+                    const isBooked = slot ? !slot.available : false;
+                    const isSelected = hour === selectedHour24;
+                    const isHovered = hour === hoverHour;
+
+                    let bg = 'rgba(0,166,81,0.5)'; // free
+                    if (isPast) bg = 'rgba(255,255,255,0.06)';
+                    else if (isBooked) bg = 'rgba(139,26,43,0.7)';
+                    if (isSelected) bg = '#C9A84C';
+                    else if (isHovered && !isPast && !isBooked) bg = 'rgba(0,166,81,0.8)';
+
+                    return (
+                        <div
+                            key={hour}
+                            onClick={() => {
+                                if (!isPast && !isBooked) onHourClick(hour);
+                            }}
+                            onMouseEnter={() => setHoverHour(hour)}
+                            onMouseLeave={() => setHoverHour(null)}
+                            style={{
+                                flex: 1, background: bg, borderRadius: 2,
+                                cursor: isPast || isBooked ? 'not-allowed' : 'pointer',
+                                transition: 'background 0.15s ease',
+                                position: 'relative',
+                            }}
+                            title={`${fmt24to12(hour)} — ${isBooked ? 'Booked' : isPast ? 'Past' : 'Available'}`}
+                        />
+                    );
+                })}
+            </div>
+            {/* Hour labels */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, padding: '0 1px' }}>
+                {[6, 8, 10, 12, 14, 16, 18, 20, 22].map(h => (
+                    <span key={h} style={{ fontSize: 8, color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-ui)', width: 0, textAlign: 'center' }}>
+                        {h <= 12 ? `${h}${h < 12 ? 'A' : 'P'}` : `${h - 12}P`}
+                    </span>
+                ))}
+            </div>
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+                {[
+                    { bg: 'rgba(0,166,81,0.5)', label: 'Free' },
+                    { bg: 'rgba(139,26,43,0.7)', label: 'Booked' },
+                    { bg: '#C9A84C', label: 'Selected' },
+                ].map(l => (
+                    <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: 2, background: l.bg }} />
+                        <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-ui)' }}>{l.label}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 // ─── Hours roulette wheel ─────────────────────────────────────────────────────
-function HourWheel({ selectedIndex, onSelect }: { selectedIndex: number; onSelect: (i: number) => void }) {
+function HourWheel({
+    selectedIndex, onSelect, bookedHours, pastHours,
+}: {
+    selectedIndex: number; onSelect: (i: number) => void;
+    bookedHours: Set<number>; pastHours: Set<number>;
+}) {
     const containerRef = useRef<HTMLDivElement>(null);
     const isDragging = useRef(false);
     const startY = useRef(0);
@@ -164,6 +273,9 @@ function HourWheel({ selectedIndex, onSelect }: { selectedIndex: number; onSelec
             >
                 {HOURS.map((h, i) => {
                     const dist = Math.abs(i - selectedIndex);
+                    // Check if this hour (in both AM and PM) is booked/past
+                    const isBookedOrPast = bookedHours.has(h) || bookedHours.has(h + 12) || pastHours.has(h) || pastHours.has(h + 12);
+
                     return (
                         <div key={i} style={{
                             height: ITEM_HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -176,7 +288,16 @@ function HourWheel({ selectedIndex, onSelect }: { selectedIndex: number; onSelec
                             transition: 'font-size 0.1s, color 0.1s, opacity 0.1s',
                             userSelect: 'none',
                             letterSpacing: '0.02em',
-                        }}>{h}</div>
+                            position: 'relative',
+                        }}>
+                            <span style={{
+                                textDecoration: isBookedOrPast ? 'line-through' : 'none',
+                                textDecorationColor: isBookedOrPast ? 'rgba(139,26,43,0.8)' : undefined,
+                                color: isBookedOrPast && dist === 0 ? 'rgba(139,26,43,0.6)' : undefined,
+                            }}>
+                                {h}
+                            </span>
+                        </div>
                     );
                 })}
             </div>
@@ -185,7 +306,10 @@ function HourWheel({ selectedIndex, onSelect }: { selectedIndex: number; onSelec
 }
 
 // ─── Duration 12-card grid ────────────────────────────────────────────────────
-function DurationGrid({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function DurationGrid({ value, onChange, maxDuration, startHour24, bookedSlots }: {
+    value: number; onChange: (v: number) => void;
+    maxDuration: number; startHour24: number; bookedSlots: AvailSlot[];
+}) {
     return (
         <div style={{
             display: 'grid',
@@ -194,39 +318,49 @@ function DurationGrid({ value, onChange }: { value: number; onChange: (v: number
         }}>
             {DURATIONS.map((d) => {
                 const active = value === d;
+                const disabled = d > maxDuration;
+                // Find the blocking hour for tooltip
+                let blockHourLabel = '';
+                if (disabled) {
+                    const blockHour = (startHour24 + maxDuration) % 24;
+                    blockHourLabel = `Slot taken at ${fmt24to12(blockHour)}`;
+                }
+
                 return (
                     <motion.button
                         key={d}
-                        onClick={() => { onChange(d); playTick(); }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                        onClick={() => { if (!disabled) { onChange(d); playTick(); } }}
+                        whileHover={disabled ? {} : { scale: 1.05 }}
+                        whileTap={disabled ? {} : { scale: 0.95 }}
+                        title={disabled ? blockHourLabel : `${d} hour${d > 1 ? 's' : ''}`}
                         style={{
                             width: '100%',
                             aspectRatio: '1',
                             maxWidth: 80,
                             borderRadius: 12,
-                            border: active ? '2px solid #C9A84C' : '1px solid rgba(255,255,255,0.15)',
-                            background: active ? '#8B1A2B' : 'rgba(255,255,255,0.03)',
-                            cursor: 'none',
+                            border: active ? '2px solid #C9A84C' : disabled ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(255,255,255,0.15)',
+                            background: active ? '#8B1A2B' : disabled ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.03)',
+                            cursor: disabled ? 'not-allowed' : 'none',
                             display: 'flex', flexDirection: 'column',
                             alignItems: 'center', justifyContent: 'center',
                             gap: 2,
                             boxShadow: active ? '0 0 20px rgba(139,26,43,0.6)' : 'none',
                             transition: 'border-color 0.2s, background 0.2s, box-shadow 0.2s',
+                            opacity: disabled ? 0.25 : 1,
                         }}
                     >
                         <div style={{
                             fontFamily: "var(--font-ui)",
                             fontSize: 28,
                             fontWeight: 700,
-                            color: active ? '#fff' : 'rgba(255,255,255,0.8)',
+                            color: active ? '#fff' : disabled ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.8)',
                             lineHeight: 1,
                         }}>{d}</div>
                         <div style={{
                             fontFamily: "var(--font-ui)",
                             fontSize: 10,
                             fontWeight: 500,
-                            color: active ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)',
+                            color: active ? 'rgba(255,255,255,0.7)' : disabled ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.4)',
                             letterSpacing: '0.05em',
                         }}>{d === 1 ? 'HR' : 'HRS'}</div>
                     </motion.button>
@@ -255,6 +389,22 @@ function ScheduleInner() {
     const [isPM, setIsPM] = useState(true);
     const [duration, setDuration] = useState(2);
 
+    // Booked slots state
+    const [bookedSlots, setBookedSlots] = useState<AvailSlot[]>([]);
+    const [loadingSlots, setLoadingSlots] = useState(false);
+
+    // Fetch booked slots when date or ground changes
+    useEffect(() => {
+        if (!groundId || !selectedDate) return;
+        setLoadingSlots(true);
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+        fetch(`${base}/api/availability/ground-slots?ground_id=${groundId}&date=${selectedDate}`)
+            .then(r => r.json())
+            .then(data => { setBookedSlots((data.slots || []) as AvailSlot[]); })
+            .catch(err => { console.error('Failed to fetch slots:', err); })
+            .finally(() => setLoadingSlots(false));
+    }, [selectedDate, groundId]);
+
     // Derived 24h times
     const hour12 = HOURS[hourIdx];
     const hour24 = isPM ? (hour12 === 12 ? 12 : hour12 + 12) : (hour12 === 12 ? 0 : hour12);
@@ -263,6 +413,47 @@ function ScheduleInner() {
     const endTime = `${String(endHour24).padStart(2, '0')}:00`;
     const startDisplay = fmt24to12(hour24);
     const endDisplay = fmt24to12(endHour24);
+
+    // Check if selected hour is unavailable
+    const isSelectedBooked = bookedSlots.find(s => s.hour === hour24 && !s.available);
+
+    // Is today?
+    const isToday = selectedDate === days[0].label;
+    const currentHour = new Date().getHours();
+    const isSelectedPast = isToday && hour24 < currentHour;
+
+    // Max duration
+    const maxDuration = getMaxDuration(hour24, bookedSlots);
+
+    // Auto-clamp duration
+    useEffect(() => {
+        if (duration > maxDuration) setDuration(maxDuration);
+    }, [maxDuration, duration]);
+
+    // Compute booked/past hour sets for wheel display
+    const bookedHourSet = new Set<number>();
+    const pastHourSet = new Set<number>();
+    for (const s of bookedSlots) {
+        if (!s.available) bookedHourSet.add(s.hour);
+    }
+    if (isToday) {
+        for (let h = 0; h < currentHour; h++) pastHourSet.add(h);
+    }
+
+    // Handle clicking on timeline segment
+    const handleTimelineClick = (hour: number) => {
+        // Convert hour24 to roulette index + AM/PM
+        const h12 = hour % 12 === 0 ? 12 : hour % 12;
+        const idx = HOURS.indexOf(h12);
+        if (idx >= 0) {
+            setHourIdx(idx);
+            setIsPM(hour >= 12);
+            playTick();
+        }
+    };
+
+    // Selected date info
+    const selectedDayInfo = days.find(d => d.label === selectedDate);
 
     const [checking, setChecking] = useState(false);
     const [available, setAvailable] = useState<boolean | null>(null);
@@ -288,7 +479,7 @@ function ScheduleInner() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedDate, startTime, endTime, groundId]);
 
-    const canContinue = available === true && !checking;
+    const canContinue = available === true && !checking && !isSelectedBooked && !isSelectedPast;
     const handleContinue = () => {
         if (!canContinue || !price) return;
         localStorage.setItem('bookingProgress', JSON.stringify({
@@ -310,7 +501,7 @@ function ScheduleInner() {
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
 
                     {/* Header */}
-                    <div style={{ textAlign: 'center', marginBottom: 36 }}>
+                    <div style={{ textAlign: 'center', marginBottom: 20 }}>
                         {groundName && (
                             <div style={{
                                 display: 'inline-flex', alignItems: 'center', gap: 10,
@@ -324,6 +515,28 @@ function ScheduleInner() {
                             SELECT YOUR SLOT
                         </h1>
                     </div>
+
+                    {/* Ground + Date header with availability bar */}
+                    {groundName && selectedDayInfo && (
+                        <div className="card-dark" style={{ padding: '16px 20px', marginBottom: 20 }}>
+                            <div style={{
+                                fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 600,
+                                color: 'rgba(255,255,255,0.8)', letterSpacing: '0.06em', marginBottom: 12,
+                                display: 'flex', alignItems: 'center', gap: 8,
+                            }}>
+                                <span style={{ color: '#C9A84C', fontWeight: 700 }}>{groundName}</span>
+                                <span style={{ color: 'rgba(255,255,255,0.3)' }}>•</span>
+                                <span>{selectedDayInfo.fullDay} {selectedDayInfo.num} {selectedDayInfo.month}</span>
+                            </div>
+                            <AvailabilityTimeline
+                                slots={bookedSlots}
+                                selectedHour24={hour24}
+                                onHourClick={handleTimelineClick}
+                                loading={loadingSlots}
+                                isToday={isToday}
+                            />
+                        </div>
+                    )}
 
                     {/* Date selector */}
                     <div className="card-dark" style={{ padding: 20, marginBottom: 20 }}>
@@ -361,8 +574,26 @@ function ScheduleInner() {
                         <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', marginBottom: 20, textTransform: 'uppercase' }}>
                             Start Hour
                         </div>
+
+                        {/* Unavailable warning */}
+                        {(isSelectedBooked || isSelectedPast) && (
+                            <div style={{
+                                background: 'rgba(139,26,43,0.15)', border: '1px solid rgba(139,26,43,0.3)',
+                                borderRadius: 8, padding: '8px 14px', marginBottom: 16, textAlign: 'center',
+                            }}>
+                                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 12, fontWeight: 600, color: '#e74c3c', letterSpacing: '0.05em' }}>
+                                    {isSelectedPast ? '⏰ This hour has passed' : '🚫 This hour is booked'}
+                                </span>
+                            </div>
+                        )}
+
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
-                            <HourWheel selectedIndex={hourIdx} onSelect={setHourIdx} />
+                            <HourWheel
+                                selectedIndex={hourIdx}
+                                onSelect={setHourIdx}
+                                bookedHours={bookedHourSet}
+                                pastHours={pastHourSet}
+                            />
 
                             {/* AM/PM toggle */}
                             <div style={{
@@ -389,10 +620,17 @@ function ScheduleInner() {
 
                     {/* Duration grid */}
                     <div className="card-dark" style={{ padding: '24px', marginBottom: 20 }}>
-                        <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', marginBottom: 16, textTransform: 'uppercase' }}>
-                            Duration
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <div style={{ fontFamily: "var(--font-ui)", fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>
+                                Duration
+                            </div>
+                            {maxDuration < 12 && (
+                                <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, color: '#C9A84C', letterSpacing: '0.05em' }}>
+                                    MAX {maxDuration}H
+                                </div>
+                            )}
                         </div>
-                        <DurationGrid value={duration} onChange={setDuration} />
+                        <DurationGrid value={duration} onChange={setDuration} maxDuration={maxDuration} startHour24={hour24} bookedSlots={bookedSlots} />
                     </div>
 
                     {/* End time banner */}

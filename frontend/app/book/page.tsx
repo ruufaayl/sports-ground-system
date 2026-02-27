@@ -62,13 +62,106 @@ function getRates(rules: PricingRule[]) {
 }
 function fmt(n: number) { return n.toLocaleString('en-PK'); }
 
+// ── Slot type ─────────────────────────────────────────────────────────────────
+interface AvailSlot {
+    hour: number;
+    available: boolean;
+}
+
+// ── Availability Bar ──────────────────────────────────────────────────────────
+function AvailabilityBar({ slots }: { slots: AvailSlot[] }) {
+    const hoursToShow = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+    const currentHour = new Date().getHours();
+
+    return (
+        <div style={{ padding: '8px 0 2px 0' }}>
+            <div style={{
+                fontSize: 9, color: 'rgba(255,255,255,0.4)',
+                letterSpacing: '0.2em', marginBottom: 6,
+                fontFamily: 'var(--font-ui)', fontWeight: 600,
+            }}>
+                TODAY&apos;S AVAILABILITY
+            </div>
+            <div style={{
+                display: 'flex', gap: 1.5, height: 8,
+                borderRadius: 4, overflow: 'hidden',
+            }}>
+                {hoursToShow.map(hour => {
+                    const slot = slots.find(s => s.hour === hour);
+                    const isPast = hour < currentHour;
+                    const isBooked = slot ? !slot.available : false;
+
+                    let bg = 'rgba(0,166,81,0.6)'; // available green
+                    if (isPast) bg = 'rgba(255,255,255,0.08)'; // past grey
+                    else if (isBooked) bg = 'rgba(139,26,43,0.8)'; // booked crimson
+
+                    return (
+                        <div
+                            key={hour}
+                            style={{ flex: 1, background: bg, borderRadius: 1 }}
+                            title={`${hour}:00 - ${isBooked ? 'Booked' : isPast ? 'Past' : 'Available'}`}
+                        />
+                    );
+                })}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-ui)' }}>6AM</span>
+                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-ui)' }}>12AM</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: 1, background: 'rgba(0,166,81,0.6)' }} />
+                    <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.35)', fontFamily: 'var(--font-ui)' }}>Free</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: 1, background: 'rgba(139,26,43,0.8)' }} />
+                    <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.35)', fontFamily: 'var(--font-ui)' }}>Booked</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Slots Badge ───────────────────────────────────────────────────────────────
+function SlotsBadge({ slots }: { slots: AvailSlot[] }) {
+    const currentHour = new Date().getHours();
+    const availableCount = slots.filter(s => s.available && s.hour >= currentHour && s.hour >= 6).length;
+
+    let bg: string, border: string, color: string, text: string;
+    if (availableCount === 0) {
+        bg = 'rgba(139,26,43,0.25)'; border = 'rgba(139,26,43,0.5)'; color = '#e74c3c'; text = 'Fully booked';
+    } else if (availableCount <= 3) {
+        bg = 'rgba(139,26,43,0.2)'; border = 'rgba(139,26,43,0.4)'; color = '#e74c3c'; text = `${availableCount} slots left`;
+    } else if (availableCount <= 8) {
+        bg = 'rgba(201,168,76,0.2)'; border = 'rgba(201,168,76,0.4)'; color = '#C9A84C'; text = `${availableCount} slots free`;
+    } else {
+        bg = 'rgba(0,166,81,0.2)'; border = 'rgba(0,166,81,0.4)'; color = '#00a651'; text = `${availableCount} slots free`;
+    }
+
+    return (
+        <div style={{
+            position: 'absolute', top: 14, right: 14,
+            background: bg, border: `1px solid ${border}`,
+            borderRadius: 20, padding: '3px 8px', zIndex: 5,
+        }}>
+            <div style={{
+                fontFamily: 'var(--font-ui)', fontSize: 9, fontWeight: 700,
+                color, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+            }}>
+                {text}
+            </div>
+        </div>
+    );
+}
+
 // ── Pitch Card ────────────────────────────────────────────────────────────────
 function PitchCard({
-    ground, isSelected, isBlurred, onSelect, index,
+    ground, isSelected, isBlurred, onSelect, index, availability,
 }: {
     ground: typeof FALLBACK_GROUNDS[number];
     isSelected: boolean; isBlurred: boolean;
     onSelect: () => void; index: number;
+    availability: AvailSlot[];
 }) {
     const cardRef = useRef<HTMLDivElement>(null);
     const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -77,6 +170,7 @@ function PitchCard({
     const rates = getRates(ground.pricing_rules);
     const format = isFullSize ? '6v6' : '5v5';
     const capacity = isFullSize ? 12 : 10;
+    const hasAvailability = availability.length > 0;
 
     const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         const card = cardRef.current; if (!card) return;
@@ -101,7 +195,7 @@ function PitchCard({
                 onClick={() => { playSelect(); onSelect(); }}
                 style={{
                     width: 280,
-                    height: 400,
+                    height: hasAvailability ? 430 : 400,
                     borderRadius: 16,
                     cursor: 'none',
                     position: 'relative',
@@ -144,18 +238,23 @@ function PitchCard({
                     {ground.name}
                 </div>
 
-                {/* ARTIFICIAL TURF badge */}
-                <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(45,90,39,0.85)', border: '1px solid rgba(100,180,80,0.4)', borderRadius: 4, padding: '3px 8px', zIndex: 5 }}>
-                    <div style={{ fontFamily: "var(--font-ui)", fontSize: 8, fontWeight: 700, color: 'rgba(150,220,120,0.9)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>ARTIFICIAL TURF</div>
-                </div>
+                {/* Slots badge — top right */}
+                {hasAvailability ? (
+                    <SlotsBadge slots={availability} />
+                ) : (
+                    <div style={{ position: 'absolute', top: 14, right: 14, background: 'rgba(45,90,39,0.85)', border: '1px solid rgba(100,180,80,0.4)', borderRadius: 4, padding: '3px 8px', zIndex: 5 }}>
+                        <div style={{ fontFamily: "var(--font-ui)", fontSize: 8, fontWeight: 700, color: 'rgba(150,220,120,0.9)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>ARTIFICIAL TURF</div>
+                    </div>
+                )}
 
                 {/* Stadium lights on hover */}
                 {hovering && [{ top: 16, left: 16 }, { top: 16, right: 16 }, { bottom: 16, left: 16 }, { bottom: 16, right: 16 }].map((pos, j) => (
                     <div key={j} style={{ position: 'absolute', width: 9, height: 9, borderRadius: '50%', background: '#C9A84C', boxShadow: '0 0 14px rgba(201,168,76,0.9), 0 0 28px rgba(201,168,76,0.5)', zIndex: 6, animation: 'gold-pulse 1s ease-in-out infinite', ...pos }} />
                 ))}
 
-                {/* Bottom info: format + capacity */}
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 14px 14px', background: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)', zIndex: 5 }}>
+                {/* Bottom info: format + capacity + availability bar */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 14px 14px', background: 'linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.4), transparent)', zIndex: 5 }}>
+                    {hasAvailability && <AvailabilityBar slots={availability} />}
                     <div style={{ fontFamily: "var(--font-heading)", fontSize: 24, fontWeight: 800, color: '#C9A84C', letterSpacing: '0.02em' }}>
                         {format}
                     </div>
@@ -210,6 +309,7 @@ export default function BookPage() {
     const [grounds, setGrounds] = useState(FALLBACK_GROUNDS);
     const [loading, setLoading] = useState(true);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [groundAvailability, setGroundAvailability] = useState<Record<string, AvailSlot[]>>({});
 
     useEffect(() => {
         const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
@@ -219,6 +319,31 @@ export default function BookPage() {
             .catch(() => { })
             .finally(() => setLoading(false));
     }, []);
+
+    // Fetch today's availability for all grounds
+    useEffect(() => {
+        if (!grounds || grounds.length === 0) return;
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+        const today = new Date().toISOString().split('T')[0];
+
+        Promise.all(
+            grounds.map(async (ground) => {
+                try {
+                    const res = await fetch(
+                        `${base}/api/availability/ground-slots?ground_id=${ground.id}&date=${today}`
+                    );
+                    const data = await res.json();
+                    return { name: ground.name, slots: (data.slots || []) as AvailSlot[] };
+                } catch {
+                    return { name: ground.name, slots: [] as AvailSlot[] };
+                }
+            })
+        ).then(results => {
+            const map: Record<string, AvailSlot[]> = {};
+            results.forEach(r => { map[r.name] = r.slots; });
+            setGroundAvailability(map);
+        });
+    }, [grounds]);
 
     const handleSelect = (ground: typeof grounds[number]) => {
         setSelectedId(ground.id);
@@ -258,14 +383,14 @@ export default function BookPage() {
                 {/* Row 1 */}
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap', marginBottom: 24 }}>
                     {grounds.slice(0, 3).map((g, i) => (
-                        <PitchCard key={g.id} ground={g} isSelected={selectedId === g.id} isBlurred={selectedId !== null && selectedId !== g.id} onSelect={() => handleSelect(g)} index={i} />
+                        <PitchCard key={g.id} ground={g} isSelected={selectedId === g.id} isBlurred={selectedId !== null && selectedId !== g.id} onSelect={() => handleSelect(g)} index={i} availability={groundAvailability[g.name] || []} />
                     ))}
                 </div>
 
                 {/* Row 2 */}
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap', marginBottom: 48 }}>
                     {grounds.slice(3).map((g, i) => (
-                        <PitchCard key={g.id} ground={g} isSelected={selectedId === g.id} isBlurred={selectedId !== null && selectedId !== g.id} onSelect={() => handleSelect(g)} index={i + 3} />
+                        <PitchCard key={g.id} ground={g} isSelected={selectedId === g.id} isBlurred={selectedId !== null && selectedId !== g.id} onSelect={() => handleSelect(g)} index={i + 3} availability={groundAvailability[g.name] || []} />
                     ))}
                 </div>
 
