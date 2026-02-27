@@ -273,6 +273,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         margin: 16px !important;
                         padding: 24px !important;
                     }
+
+                    /* Chart responsive */
+                    .reports-chart-grid {
+                        grid-template-columns: 1fr !important;
+                    }
+                    .reports-chart-card {
+                        padding: 16px !important;
+                    }
+                    .reports-kpi-grid {
+                        grid-template-columns: 1fr 1fr !important;
+                    }
                 }
             `}</style>
         </div>

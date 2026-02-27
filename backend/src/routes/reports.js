@@ -34,19 +34,17 @@ router.get('/daily/:date', async (req, res, next) => {
             byGround[name] = (byGround[name] || 0) + Number(b.base_price);
         }
 
-        // By hour
+        // By hour — store BOOKING COUNTS per hour (frontend charts expect counts)
         const byHour = {};
-        const hourBookingCounts = {};
         for (const b of (allBookings || [])) {
             const startHour = b.start_time.split(':')[0];
-            byHour[startHour] = (byHour[startHour] || 0) + Number(b.base_price || 0);
-            hourBookingCounts[startHour] = (hourBookingCounts[startHour] || 0) + 1;
+            byHour[startHour] = (byHour[startHour] || 0) + 1;
         }
 
         // Peak hour
         let peakHour = null;
         let peakCount = 0;
-        for (const [hour, count] of Object.entries(hourBookingCounts)) {
+        for (const [hour, count] of Object.entries(byHour)) {
             if (count > peakCount) { peakHour = hour + ':00'; peakCount = count; }
         }
 

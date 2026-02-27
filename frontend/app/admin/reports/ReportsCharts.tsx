@@ -56,35 +56,73 @@ const DarkTooltipStyle = {
     labelStyle: { color: GOLD, fontWeight: 600 },
 };
 
+const axisStyle = {
+    xTick: { fill: 'rgba(255,255,255,0.5)', fontSize: 11 },
+    yTick: { fill: 'rgba(255,255,255,0.5)', fontSize: 11 },
+    axisLine: { stroke: 'rgba(255,255,255,0.1)' },
+};
+
+function NoDataMsg() {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-ui)', fontSize: 13 }}>
+            No data for this period
+        </div>
+    );
+}
+
 export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, weekly, monthly, selectedMonth, setSelectedMonth, shiftMonth, sending, handleSendWhatsApp, fmt }: Props) {
     // ═══ DAILY TAB ═══
     if (tab === 'daily') {
         if (!daily) return <div style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-ui)', padding: 40, textAlign: 'center' }}>Loading daily report...</div>;
 
-        const pieData = [
-            { name: 'Booking Cash', value: daily.bookings.cash, color: CRIMSON },
-            { name: 'Booking Online', value: daily.bookings.online, color: GOLD },
-            { name: 'Tuck Shop', value: daily.tuckShop.total, color: BLUE },
+        // Safe data extraction with Number() coercion
+        const bookingCash = Number(daily.bookings?.cash) || 0;
+        const bookingOnline = Number(daily.bookings?.online) || 0;
+        const tuckTotal = Number(daily.tuckShop?.total) || 0;
+
+        const rawPieData = [
+            { name: 'Booking Cash', value: bookingCash, color: CRIMSON },
+            { name: 'Booking Online', value: bookingOnline, color: GOLD },
+            { name: 'Tuck Shop', value: tuckTotal, color: BLUE },
         ].filter(d => d.value > 0);
+        const pieData = rawPieData.length > 0 ? rawPieData : [{ name: 'No Data', value: 1, color: '#333' }];
+        const hasPieData = rawPieData.length > 0;
 
-        const groundData = Object.entries(daily.bookings.byGround).map(([name, amount]) => ({ name, amount }));
+        // Ground data with fallback
+        const rawGroundData = Object.entries(daily.bookings?.byGround || {}).map(([name, amount]) => ({
+            name, revenue: Number(amount) || 0,
+        }));
+        const groundData = rawGroundData.length > 0 ? rawGroundData : [
+            { name: 'G1', revenue: 0 }, { name: 'G2', revenue: 0 },
+            { name: 'G3', revenue: 0 }, { name: 'G4', revenue: 0 }, { name: 'G5', revenue: 0 },
+        ];
+        const hasGroundData = rawGroundData.some(d => d.revenue > 0);
 
+        // Hour data — always generate 18 hours (6AM-11PM)
         const hourData = Array.from({ length: 18 }, (_, i) => {
-            const h = i + 6; // 6AM to 11PM
+            const h = i + 6;
             const key = String(h).padStart(2, '0');
             const label = `${h % 12 || 12}${h >= 12 ? 'PM' : 'AM'}`;
-            return { hour: label, bookings: daily.bookings.byHour[key] || 0, isPeak: daily.peakHour === key + ':00' };
+            return {
+                hour: label,
+                bookings: Number(daily.bookings?.byHour?.[key]) || 0,
+                isPeak: daily.peakHour === key + ':00',
+            };
         });
+        const hasHourData = hourData.some(d => d.bookings > 0);
 
-        const paymentDonut = [
-            { name: 'Cash', value: daily.bookings.cash, color: CRIMSON },
-            { name: 'Online', value: daily.bookings.online, color: GOLD },
+        // Payment donut
+        const rawPaymentDonut = [
+            { name: 'Cash', value: bookingCash, color: CRIMSON },
+            { name: 'Online', value: bookingOnline, color: GOLD },
         ].filter(d => d.value > 0);
+        const paymentDonut = rawPaymentDonut.length > 0 ? rawPaymentDonut : [{ name: 'No Data', value: 1, color: '#333' }];
+        const hasPaymentData = rawPaymentDonut.length > 0;
 
         return (
             <div>
                 {/* Date + WhatsApp */}
-                <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 24, alignItems: 'center', flexWrap: 'wrap' }}>
                     <input type="date" value={dailyDate} onChange={e => setDailyDate(e.target.value)} style={{
                         background: '#111218', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, color: '#fff',
                         fontSize: 13, padding: '8px 12px', fontFamily: 'var(--font-ui)', outline: 'none', colorScheme: 'dark',
@@ -95,11 +133,11 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                 </div>
 
                 {/* KPI Cards */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+                <div className="reports-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
                     {[
-                        { label: 'TOTAL REVENUE', value: `PKR ${fmt(daily.grandTotal)}`, accent: GREEN },
-                        { label: 'TOTAL BOOKINGS', value: String(daily.bookings.count), accent: CRIMSON },
-                        { label: 'OCCUPANCY', value: `${daily.occupancyRate}%`, accent: GOLD },
+                        { label: 'TOTAL REVENUE', value: `PKR ${fmt(Number(daily.grandTotal) || 0)}`, accent: GREEN },
+                        { label: 'TOTAL BOOKINGS', value: String(Number(daily.bookings?.count) || 0), accent: CRIMSON },
+                        { label: 'OCCUPANCY', value: `${Number(daily.occupancyRate) || 0}%`, accent: GOLD },
                     ].map(c => (
                         <div key={c.label} style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, padding: 20, position: 'relative', overflow: 'hidden' }}>
                             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: c.accent }} />
@@ -113,59 +151,69 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                 <div className="reports-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
                     {/* Revenue Split Pie */}
                     <ChartCard title="REVENUE SPLIT">
-                        <ResponsiveContainer width="100%" height={250} className="reports-chart-container">
-                            <PieChart>
-                                <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" label={(({ name, value }: any) => `${name}: ${fmt(value)}`) as any} labelLine={false}>
-                                    {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                                </Pie>
-                                <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
-                            </PieChart>
-                        </ResponsiveContainer>
+                        {hasPieData ? (
+                            <ResponsiveContainer width="100%" height={250}>
+                                <PieChart>
+                                    <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" label={(({ name, value }: any) => `${name}: ${fmt(value)}`) as any} labelLine={false}>
+                                        {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                                    </Pie>
+                                    <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : <NoDataMsg />}
                     </ChartCard>
 
                     {/* Revenue by Ground */}
                     <ChartCard title="REVENUE BY GROUND">
-                        <ResponsiveContainer width="100%" height={250} className="reports-chart-container">
-                            <BarChart data={groundData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                                <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11, fontFamily: 'Roboto Flex' }} />
-                                <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} />
-                                <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
-                                <Bar dataKey="amount" fill={CRIMSON} radius={[4, 4, 0, 0]} label={{ fill: '#fff', fontSize: 10, position: 'top' }} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        {hasGroundData ? (
+                            <ResponsiveContainer width="100%" height={250}>
+                                <BarChart data={groundData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                                    <XAxis dataKey="name" tick={axisStyle.xTick} axisLine={axisStyle.axisLine} />
+                                    <YAxis tick={axisStyle.yTick} axisLine={axisStyle.axisLine} />
+                                    <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
+                                    <Bar dataKey="revenue" fill={CRIMSON} radius={[4, 4, 0, 0]} label={{ fill: '#fff', fontSize: 10, position: 'top' }} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : <NoDataMsg />}
                     </ChartCard>
 
                     {/* Bookings by Hour */}
                     <ChartCard title="BOOKINGS BY HOUR">
-                        <ResponsiveContainer width="100%" height={250} className="reports-chart-container">
-                            <BarChart data={hourData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                                <XAxis dataKey="hour" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 9, fontFamily: 'Roboto Flex' }} interval={1} />
-                                <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} allowDecimals={false} />
-                                <Tooltip {...DarkTooltipStyle} />
-                                <Bar dataKey="bookings" fill={CRIMSON}>
-                                    {hourData.map((entry, i) => <Cell key={i} fill={entry.isPeak ? GOLD : CRIMSON} />)}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                        {hasHourData ? (
+                            <ResponsiveContainer width="100%" height={250}>
+                                <BarChart data={hourData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                                    <XAxis dataKey="hour" tick={{ ...axisStyle.xTick, fontSize: 9 }} axisLine={axisStyle.axisLine} interval={1} />
+                                    <YAxis tick={axisStyle.yTick} axisLine={axisStyle.axisLine} allowDecimals={false} />
+                                    <Tooltip {...DarkTooltipStyle} />
+                                    <Bar dataKey="bookings" fill={CRIMSON}>
+                                        {hourData.map((entry, i) => <Cell key={i} fill={entry.isPeak ? GOLD : CRIMSON} />)}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : <NoDataMsg />}
                     </ChartCard>
 
                     {/* Payment Method Donut */}
                     <ChartCard title="PAYMENT METHOD">
-                        <ResponsiveContainer width="100%" height={250} className="reports-chart-container">
-                            <PieChart>
-                                <Pie data={paymentDonut} cx="50%" cy="50%" outerRadius={90} innerRadius={60} dataKey="value">
-                                    {paymentDonut.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                                </Pie>
-                                <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
-                                <Legend formatter={((value: any) => <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{value}</span>) as any} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -60%)', textAlign: 'center' }}>
-                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>TOTAL</div>
-                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 16, fontWeight: 800, color: '#fff' }}>PKR {fmt(daily.bookings.total)}</div>
-                        </div>
+                        {hasPaymentData ? (
+                            <>
+                                <ResponsiveContainer width="100%" height={250}>
+                                    <PieChart>
+                                        <Pie data={paymentDonut} cx="50%" cy="50%" outerRadius={90} innerRadius={60} dataKey="value">
+                                            {paymentDonut.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                                        </Pie>
+                                        <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
+                                        <Legend formatter={((value: any) => <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{value}</span>) as any} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -60%)', textAlign: 'center' }}>
+                                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>TOTAL</div>
+                                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 16, fontWeight: 800, color: '#fff' }}>PKR {fmt(Number(daily.bookings?.total) || 0)}</div>
+                                </div>
+                            </>
+                        ) : <NoDataMsg />}
                     </ChartCard>
                 </div>
             </div>
@@ -174,37 +222,52 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
 
     // ═══ WEEKLY TAB ═══
     if (tab === 'weekly') {
-        const summaryTotal = weekly.reduce((s, d) => s + d.total, 0);
-        const summaryBookings = weekly.reduce((s, d) => s + d.bookingCount, 0);
+        // Safe data transformation
+        const weeklyData = (weekly || []).map(d => ({
+            dayName: d.dayName || d.date?.slice(5) || 'N/A',
+            date: d.date || '',
+            bookingRevenue: Number(d.bookingRevenue) || 0,
+            bookingCount: Number(d.bookingCount) || 0,
+            tuckRevenue: Number(d.tuckRevenue) || 0,
+            total: Number(d.total) || 0,
+        }));
+
+        const summaryTotal = weeklyData.reduce((s, d) => s + d.total, 0);
+        const summaryBookings = weeklyData.reduce((s, d) => s + d.bookingCount, 0);
+        const hasWeeklyData = weeklyData.some(d => d.total > 0);
 
         return (
             <div>
                 {/* Grouped Bar Chart */}
                 <ChartCard title="7-DAY REVENUE">
-                    <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={weekly}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                            <XAxis dataKey="dayName" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11, fontFamily: 'Roboto Flex' }} />
-                            <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} />
-                            <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
-                            <Legend formatter={((value: any) => <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{value}</span>) as any} />
-                            <Bar dataKey="bookingRevenue" name="Bookings" fill={CRIMSON} radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="tuckRevenue" name="Tuck Shop" fill={GOLD} radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
+                    {hasWeeklyData ? (
+                        <ResponsiveContainer width="100%" height={300}>
+                            <BarChart data={weeklyData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                                <XAxis dataKey="dayName" tick={axisStyle.xTick} axisLine={axisStyle.axisLine} />
+                                <YAxis tick={axisStyle.yTick} axisLine={axisStyle.axisLine} />
+                                <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
+                                <Legend formatter={((value: any) => <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>{value}</span>) as any} />
+                                <Bar dataKey="bookingRevenue" name="Bookings" fill={CRIMSON} radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="tuckRevenue" name="Tuck Shop" fill={GOLD} radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : <NoDataMsg />}
                 </ChartCard>
 
                 {/* Booking Count Line */}
                 <ChartCard title="DAILY BOOKING COUNT" style={{ marginTop: 16 }}>
-                    <ResponsiveContainer width="100%" height={250}>
-                        <AreaChart data={weekly}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                            <XAxis dataKey="dayName" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11, fontFamily: 'Roboto Flex' }} />
-                            <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} allowDecimals={false} />
-                            <Tooltip {...DarkTooltipStyle} />
-                            <Area type="monotone" dataKey="bookingCount" name="Bookings" stroke={CRIMSON} fill={`${CRIMSON}40`} strokeWidth={2} />
-                        </AreaChart>
-                    </ResponsiveContainer>
+                    {hasWeeklyData ? (
+                        <ResponsiveContainer width="100%" height={250}>
+                            <AreaChart data={weeklyData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                                <XAxis dataKey="dayName" tick={axisStyle.xTick} axisLine={axisStyle.axisLine} />
+                                <YAxis tick={axisStyle.yTick} axisLine={axisStyle.axisLine} allowDecimals={false} />
+                                <Tooltip {...DarkTooltipStyle} />
+                                <Area type="monotone" dataKey="bookingCount" name="Bookings" stroke={CRIMSON} fill={`${CRIMSON}40`} strokeWidth={2} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    ) : <NoDataMsg />}
                 </ChartCard>
 
                 {/* Summary Table */}
@@ -213,15 +276,15 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                         <thead>
                             <tr>
                                 {['Day', 'Date', 'Bookings', 'Revenue', 'Tuck Shop', 'Total'].map(h => (
-                                    <th key={h} className={h === 'Tuck Shop' ? 'hide-mobile' : ''} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>{h}</th>
+                                    <th key={h} className={['Tuck Shop', 'Date'].includes(h) ? 'hide-mobile' : ''} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody>
-                            {weekly.map((d, i) => (
+                            {weeklyData.map((d, i) => (
                                 <tr key={d.date} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent' }}>
                                     <td style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: GOLD }}>{d.dayName}</td>
-                                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{d.date}</td>
+                                    <td className="hide-mobile" style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{d.date}</td>
                                     <td style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: '#fff' }}>{d.bookingCount}</td>
                                     <td style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#fff' }}>PKR {fmt(d.bookingRevenue)}</td>
                                     <td className="hide-mobile" style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>PKR {fmt(d.tuckRevenue)}</td>
@@ -229,10 +292,11 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                                 </tr>
                             ))}
                             <tr style={{ background: 'rgba(139,26,43,0.08)', borderTop: '2px solid rgba(139,26,43,0.3)' }}>
-                                <td colSpan={2} style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>TOTAL</td>
+                                <td colSpan={1} style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>TOTAL</td>
+                                <td className="hide-mobile" style={{ padding: '12px 16px' }}></td>
                                 <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>{summaryBookings}</td>
-                                <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(weekly.reduce((s, d) => s + d.bookingRevenue, 0))}</td>
-                                <td className="hide-mobile" style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(weekly.reduce((s, d) => s + d.tuckRevenue, 0))}</td>
+                                <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(weeklyData.reduce((s, d) => s + d.bookingRevenue, 0))}</td>
+                                <td className="hide-mobile" style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(weeklyData.reduce((s, d) => s + d.tuckRevenue, 0))}</td>
                                 <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 800, color: GOLD }}>PKR {fmt(summaryTotal)}</td>
                             </tr>
                         </tbody>
@@ -244,17 +308,25 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
 
     // ═══ MONTHLY TAB ═══
     if (tab === 'monthly' && monthly) {
-        const groundBarData = Object.entries(monthly.byGround).map(([name, data]) => ({
-            name, revenue: data.revenue, count: data.count,
-            pct: monthly.totalRevenue > 0 ? Math.round((data.revenue / monthly.totalRevenue) * 100) : 0,
+        const groundBarData = Object.entries(monthly.byGround || {}).map(([name, data]) => ({
+            name, revenue: Number(data.revenue) || 0, count: Number(data.count) || 0,
+            pct: (Number(monthly.totalRevenue) || 0) > 0 ? Math.round(((Number(data.revenue) || 0) / Number(monthly.totalRevenue)) * 100) : 0,
         }));
 
-        const weekData = monthly.byWeek.map(w => ({ name: `Week ${w.week}`, revenue: w.revenue, count: w.count }));
+        const weekData = (monthly.byWeek || []).map(w => ({ name: `Week ${w.week}`, revenue: Number(w.revenue) || 0, count: Number(w.count) || 0 }));
+        const hasWeekData = weekData.some(w => w.revenue > 0);
 
         // Peak hours heatmap data
         const peakMap: Record<string, number> = {};
-        for (const p of monthly.peakHours) { peakMap[p.hour] = p.count; }
-        const maxPeak = Math.max(...monthly.peakHours.map(p => p.count), 1);
+        for (const p of (monthly.peakHours || [])) { peakMap[p.hour] = Number(p.count) || 0; }
+        const maxPeak = Math.max(...(monthly.peakHours || []).map(p => Number(p.count) || 0), 1);
+
+        // Daily revenue trend
+        const dailyRevData = (monthly.dailyRevenue || []).map(d => ({
+            day: d.day || parseInt(String(d.date || '').slice(-2), 10) || 0,
+            revenue: Number(d.revenue) || 0,
+        }));
+        const hasDailyRev = dailyRevData.some(d => d.revenue > 0);
 
         return (
             <div>
@@ -268,14 +340,14 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                 </div>
 
                 {/* Summary Cards */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16, marginBottom: 24 }}>
                     {[
-                        { label: 'TOTAL REVENUE', value: `PKR ${fmt(monthly.totalRevenue)}`, accent: GOLD },
-                        { label: 'TOTAL BOOKINGS', value: String(monthly.totalBookings), accent: CRIMSON },
-                        { label: 'AVG DAILY', value: `PKR ${fmt(monthly.avgDailyRevenue)}`, accent: GREEN },
-                        { label: 'BEST DAY', value: monthly.bestDay.date ? `${monthly.bestDay.date.split('-')[2]}th` : '—', accent: BLUE },
-                        { label: 'CASH', value: `PKR ${fmt(monthly.paymentSplit.cash)}`, accent: CRIMSON },
-                        { label: 'ONLINE', value: `PKR ${fmt(monthly.paymentSplit.online)}`, accent: GOLD },
+                        { label: 'TOTAL REVENUE', value: `PKR ${fmt(Number(monthly.totalRevenue) || 0)}`, accent: GOLD },
+                        { label: 'TOTAL BOOKINGS', value: String(Number(monthly.totalBookings) || 0), accent: CRIMSON },
+                        { label: 'AVG DAILY', value: `PKR ${fmt(Number(monthly.avgDailyRevenue) || 0)}`, accent: GREEN },
+                        { label: 'BEST DAY', value: monthly.bestDay?.date ? `${monthly.bestDay.date.split('-')[2]}th` : '—', accent: BLUE },
+                        { label: 'CASH', value: `PKR ${fmt(Number(monthly.paymentSplit?.cash) || 0)}`, accent: CRIMSON },
+                        { label: 'ONLINE', value: `PKR ${fmt(Number(monthly.paymentSplit?.online) || 0)}`, accent: GOLD },
                     ].map(c => (
                         <div key={c.label} style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, padding: 16, position: 'relative', overflow: 'hidden' }}>
                             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: c.accent }} />
@@ -288,31 +360,35 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                 <div className="reports-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
                     {/* Weekly Breakdown */}
                     <ChartCard title="WEEKLY BREAKDOWN">
-                        <ResponsiveContainer width="100%" height={250}>
-                            <BarChart data={weekData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                                <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11, fontFamily: 'Roboto Flex' }} />
-                                <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} />
-                                <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
-                                <Bar dataKey="revenue" fill={CRIMSON} radius={[4, 4, 0, 0]} label={{ fill: '#fff', fontSize: 10, position: 'top' }} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        {hasWeekData ? (
+                            <ResponsiveContainer width="100%" height={250}>
+                                <BarChart data={weekData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                                    <XAxis dataKey="name" tick={axisStyle.xTick} axisLine={axisStyle.axisLine} />
+                                    <YAxis tick={axisStyle.yTick} axisLine={axisStyle.axisLine} />
+                                    <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
+                                    <Bar dataKey="revenue" fill={CRIMSON} radius={[4, 4, 0, 0]} label={{ fill: '#fff', fontSize: 10, position: 'top' }} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : <NoDataMsg />}
                     </ChartCard>
 
                     {/* Ground Performance Horizontal */}
                     <ChartCard title="GROUND PERFORMANCE">
-                        <div style={{ padding: '0 16px' }}>
-                            {groundBarData.map(g => (
-                                <div key={g.name} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: CRIMSON, width: 40 }}>{g.name}</span>
-                                    <div style={{ flex: 1, height: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 5, overflow: 'hidden' }}>
-                                        <div style={{ width: `${g.pct}%`, height: '100%', background: `linear-gradient(90deg, ${CRIMSON}, ${GOLD})`, borderRadius: 5, transition: 'width 0.5s ease' }} />
+                        {groundBarData.length > 0 ? (
+                            <div style={{ padding: '0 16px' }}>
+                                {groundBarData.map(g => (
+                                    <div key={g.name} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                                        <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: CRIMSON, width: 40 }}>{g.name}</span>
+                                        <div style={{ flex: 1, height: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 5, overflow: 'hidden' }}>
+                                            <div style={{ width: `${g.pct}%`, height: '100%', background: `linear-gradient(90deg, ${CRIMSON}, ${GOLD})`, borderRadius: 5, transition: 'width 0.5s ease' }} />
+                                        </div>
+                                        <span style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: '#fff', width: 90, textAlign: 'right' }}>PKR {fmt(g.revenue)}</span>
+                                        <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.4)', width: 35, textAlign: 'right' }}>{g.pct}%</span>
                                     </div>
-                                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: '#fff', width: 90, textAlign: 'right' }}>PKR {fmt(g.revenue)}</span>
-                                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.4)', width: 35, textAlign: 'right' }}>{g.pct}%</span>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        ) : <NoDataMsg />}
                     </ChartCard>
                 </div>
 
@@ -339,16 +415,34 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
 
                 {/* Month Revenue Trend */}
                 <ChartCard title="DAILY REVENUE TREND">
-                    <ResponsiveContainer width="100%" height={250}>
-                        <AreaChart data={monthly.dailyRevenue}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                            <XAxis dataKey="day" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 10 }} />
-                            <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} />
-                            <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
-                            <Area type="monotone" dataKey="revenue" stroke={CRIMSON} fill={`${CRIMSON}30`} strokeWidth={2} />
-                        </AreaChart>
-                    </ResponsiveContainer>
+                    {hasDailyRev ? (
+                        <ResponsiveContainer width="100%" height={250}>
+                            <AreaChart data={dailyRevData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                                <XAxis dataKey="day" tick={axisStyle.xTick} axisLine={axisStyle.axisLine} />
+                                <YAxis tick={axisStyle.yTick} axisLine={axisStyle.axisLine} />
+                                <Tooltip {...DarkTooltipStyle} formatter={((v: any) => `PKR ${fmt(Number(v))}`) as any} />
+                                <Area type="monotone" dataKey="revenue" stroke={CRIMSON} fill={`${CRIMSON}30`} strokeWidth={2} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    ) : <NoDataMsg />}
                 </ChartCard>
+            </div>
+        );
+    }
+
+    // Monthly loading state
+    if (tab === 'monthly' && !monthly) {
+        return (
+            <div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' }}>
+                    <button onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: '#fff', fontSize: 16, padding: '6px 12px', cursor: 'pointer' }}>←</button>
+                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 16, fontWeight: 700, color: '#fff', letterSpacing: '0.08em', minWidth: 160, textAlign: 'center' }}>
+                        {new Date(selectedMonth + '-01T12:00:00').toLocaleDateString('en-PK', { month: 'long', year: 'numeric' }).toUpperCase()}
+                    </span>
+                    <button onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: '#fff', fontSize: 16, padding: '6px 12px', cursor: 'pointer' }}>→</button>
+                </div>
+                <div style={{ color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-ui)', padding: 40, textAlign: 'center' }}>Loading monthly report...</div>
             </div>
         );
     }
@@ -365,21 +459,6 @@ function ChartCard({ title, children, style }: { title: string; children: React.
         }}>
             <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.35)', marginBottom: 16 }}>{title}</div>
             {children}
-
-            {/* Mobile responsive chart styles */}
-            <style>{`
-                @media (max-width: 768px) {
-                    .reports-chart-grid {
-                        grid-template-columns: 1fr !important;
-                    }
-                    .reports-chart-card {
-                        padding: 16px !important;
-                    }
-                    .reports-chart-container {
-                        height: 200px !important;
-                    }
-                }
-            `}</style>
         </div>
     );
 }

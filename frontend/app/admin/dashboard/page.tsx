@@ -19,6 +19,43 @@ const STATUS_STYLES: Record<string, { bg: string; border: string; color: string;
     cancelled: { bg: 'rgba(139,26,43,0.15)', border: 'rgba(139,26,43,0.4)', color: '#8B1A2B', label: '● CANCELLED' },
 };
 
+// ─── Inline Mobile Booking Card (dashboard-specific, simpler) ───
+function DashboardCard({ b, onMarkPaid }: { b: Record<string, unknown>; onMarkPaid: (ref: string) => void }) {
+    const st = STATUS_STYLES[(b.booking_status as string)] || STATUS_STYLES.pending;
+    const gName = (b.grounds as Record<string, string>)?.name || '?';
+
+    return (
+        <div style={{
+            background: '#111218', border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 8, padding: 16, marginBottom: 8,
+        }}>
+            {/* Row 1: Ref + Status */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#C9A84C' }}>{b.booking_ref as string}</span>
+                <span style={{ background: st.bg, border: `1px solid ${st.border}`, borderRadius: 12, padding: '2px 10px', fontSize: 10, fontWeight: 600, color: st.color }}>{st.label}</span>
+            </div>
+            {/* Row 2: Ground + Customer */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <span style={{ background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#8B1A2B', flexShrink: 0 }}>{gName}</span>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 14, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.customer_name as string}</span>
+            </div>
+            {/* Row 3: Time + Amount */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>{fmtTime(b.start_time as string)} → {fmtTime(b.end_time as string)}</span>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 700, color: '#fff' }}>PKR {fmt(Number(b.base_price))}</span>
+            </div>
+            {/* Action */}
+            {b.payment_status === 'pending' && b.booking_status === 'confirmed' && (
+                <button onClick={() => onMarkPaid(b.booking_ref as string)} style={{
+                    width: '100%', height: 36, borderRadius: 4, fontSize: 11, fontWeight: 600,
+                    background: 'transparent', border: '1px solid rgba(0,166,81,0.4)', color: '#00a651',
+                    cursor: 'pointer', fontFamily: 'var(--font-ui)', letterSpacing: '0.05em',
+                }}>MARK PAID</button>
+            )}
+        </div>
+    );
+}
+
 export default function DashboardPage() {
     const [clock, setClock] = useState('');
     const [dateStr, setDateStr] = useState('');
@@ -78,6 +115,8 @@ export default function DashboardPage() {
         { label: 'ACTIVE NOW', value: String(bookings.filter((b) => b.booking_status === 'confirmed' && b.payment_status === 'paid').length), sub: 'Confirmed & paid', accent: '#00a651', icon: '⚡' },
     ];
 
+    const mobileBookings = bookings.slice(0, 6);
+
     return (
         <div>
             {/* Header */}
@@ -121,17 +160,17 @@ export default function DashboardPage() {
                 </button>
             </div>
 
-            {/* Recent Bookings Table */}
-            <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
+            {/* ═══ DESKTOP: Recent Bookings Table ═══ */}
+            <div className="desktop-only" style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '0.1em' }}>RECENT BOOKINGS</span>
                 </div>
-                <div style={{ overflowX: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                         <thead>
                             <tr>
                                 {['REF', 'GROUND', 'CUSTOMER', 'PHONE', 'TIME', 'AMOUNT', 'STATUS', 'ACTION'].map((h) => (
-                                    <th key={h} className={['PHONE', 'AMOUNT'].includes(h) ? 'hide-mobile' : ''} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>{h}</th>
+                                    <th key={h} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -147,14 +186,14 @@ export default function DashboardPage() {
                                         onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(139,26,43,0.06)'; }}
                                         onMouseLeave={(e) => { e.currentTarget.style.background = i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent'; }}
                                     >
-                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#C9A84C', fontVariantNumeric: 'tabular-nums', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.booking_ref as string}</td>
+                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#C9A84C', fontVariantNumeric: 'tabular-nums' }}>{b.booking_ref as string}</td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <span style={{ background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, padding: '3px 10px', fontSize: 12, fontWeight: 600, color: '#8B1A2B' }}>{groundName}</span>
                                         </td>
-                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 500, color: '#fff', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.customer_name as string}</td>
-                                        <td className="hide-mobile" style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{b.customer_phone as string}</td>
+                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 500, color: '#fff' }}>{b.customer_name as string}</td>
+                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{b.customer_phone as string}</td>
                                         <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap' }}>{fmtTime(b.start_time as string)} → {fmtTime(b.end_time as string)}</td>
-                                        <td className="hide-mobile" style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#fff' }}>PKR {fmt(Number(b.base_price))}</td>
+                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#fff' }}>PKR {fmt(Number(b.base_price))}</td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <span style={{ background: st.bg, border: `1px solid ${st.border}`, borderRadius: 12, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: st.color, whiteSpace: 'nowrap' }}>{st.label}</span>
                                         </td>
@@ -178,9 +217,29 @@ export default function DashboardPage() {
                     </table>
                 </div>
             </div>
-            {/* Mobile responsive styles */}
+
+            {/* ═══ MOBILE: Recent Bookings Cards ═══ */}
+            <div className="mobile-only">
+                <div style={{ padding: '12px 0 8px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '0.1em' }}>
+                    RECENT BOOKINGS
+                </div>
+                {mobileBookings.length === 0 && (
+                    <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-ui)', fontSize: 14, background: '#111218', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+                        No bookings today
+                    </div>
+                )}
+                {mobileBookings.map(b => (
+                    <DashboardCard key={b.booking_ref as string} b={b} onMarkPaid={handleMarkPaid} />
+                ))}
+            </div>
+
+            {/* Responsive styles */}
             <style>{`
+                .desktop-only { display: block; }
+                .mobile-only { display: none; }
                 @media (max-width: 768px) {
+                    .desktop-only { display: none !important; }
+                    .mobile-only { display: block !important; }
                     .kpi-grid {
                         grid-template-columns: 1fr 1fr !important;
                         gap: 12px !important;

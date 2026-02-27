@@ -6,6 +6,7 @@ const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 function fmt(n: number) { return Math.round(n).toLocaleString('en-PK'); }
 function fmtTime(t: string) { if (!t) return ''; const h = parseInt(t.split(':')[0], 10); return `${h % 12 || 12}:00 ${h >= 12 ? 'PM' : 'AM'}`; }
+function fmtDateShort(d: string) { if (!d) return ''; const dt = new Date(d + 'T12:00:00'); return dt.toLocaleDateString('en-PK', { day: 'numeric', month: 'short' }); }
 function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function yesterdayStr() { const d = new Date(); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function weekStartStr() { const d = new Date(); const day = d.getDay(); d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
@@ -18,6 +19,118 @@ const STATUS_STYLES: Record<string, { bg: string; border: string; color: string;
 };
 
 interface GroundInfo { id: string; name: string; }
+
+// ─── Shared Booking Card Component (used by both Bookings + Dashboard) ───
+function BookingCard({ b, onMarkPaid, onCancel }: {
+    b: Record<string, unknown>;
+    onMarkPaid?: (ref: string) => void;
+    onCancel?: (ref: string) => void;
+}) {
+    const [expanded, setExpanded] = useState(false);
+    const st = STATUS_STYLES[(b.booking_status as string)] || STATUS_STYLES.pending;
+    const gName = (b.grounds as Record<string, string>)?.name || '?';
+    const paymentColor = b.payment_status === 'paid' ? '#00a651' : '#C9A84C';
+    const paymentBg = b.payment_status === 'paid' ? 'rgba(0,166,81,0.15)' : 'rgba(201,168,76,0.15)';
+    const paymentBorder = b.payment_status === 'paid' ? 'rgba(0,166,81,0.4)' : 'rgba(201,168,76,0.4)';
+
+    return (
+        <div style={{
+            background: '#111218', border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 8, padding: 16, marginBottom: 8,
+        }}>
+            {/* ROW 1: Ref + Status */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#C9A84C' }}>
+                    {b.booking_ref as string}
+                </span>
+                <span style={{
+                    background: st.bg, border: `1px solid ${st.border}`, borderRadius: 12,
+                    padding: '2px 10px', fontSize: 10, fontWeight: 600, color: st.color, whiteSpace: 'nowrap',
+                }}>{st.label}</span>
+            </div>
+
+            {/* ROW 2: Ground + Customer | Date */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                    <span style={{
+                        background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)',
+                        borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#8B1A2B', flexShrink: 0,
+                    }}>{gName}</span>
+                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 14, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {b.customer_name as string}
+                    </span>
+                </div>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.6)', flexShrink: 0, marginLeft: 8 }}>
+                    {fmtDateShort(b.date as string)}
+                </span>
+            </div>
+
+            {/* ROW 3: Time | Duration */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
+                    {fmtTime(b.start_time as string)} → {fmtTime(b.end_time as string)}
+                </span>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
+                    {b.duration_hours as number}h
+                </span>
+            </div>
+
+            {/* ROW 4: Price | Payment badge */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 16, fontWeight: 700, color: '#fff' }}>
+                    PKR {fmt(Number(b.base_price))}
+                </span>
+                <span style={{
+                    background: paymentBg, border: `1px solid ${paymentBorder}`,
+                    borderRadius: 12, padding: '2px 10px', fontSize: 10, fontWeight: 600, color: paymentColor,
+                }}>{(b.payment_status as string).toUpperCase()}</span>
+            </div>
+
+            {/* ROW 5: Actions */}
+            <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setExpanded(!expanded)} style={{
+                    flex: 1, height: 36, borderRadius: 4, fontSize: 11, fontWeight: 600, letterSpacing: '0.05em',
+                    cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                    background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)',
+                }}>{expanded ? 'CLOSE' : 'VIEW'}</button>
+                {onMarkPaid && b.payment_status === 'pending' && b.booking_status === 'confirmed' && (
+                    <button onClick={() => onMarkPaid(b.booking_ref as string)} style={{
+                        flex: 1, height: 36, borderRadius: 4, fontSize: 11, fontWeight: 600, letterSpacing: '0.05em',
+                        cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                        background: 'transparent', border: '1px solid rgba(0,166,81,0.4)', color: '#00a651',
+                    }}>MARK PAID</button>
+                )}
+                {onCancel && b.booking_status !== 'cancelled' && (
+                    <button onClick={() => onCancel(b.booking_ref as string)} style={{
+                        flex: 1, height: 36, borderRadius: 4, fontSize: 11, fontWeight: 600, letterSpacing: '0.05em',
+                        cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                        background: 'transparent', border: '1px solid rgba(139,26,43,0.4)', color: '#8B1A2B',
+                    }}>CANCEL</button>
+                )}
+            </div>
+
+            {/* Expanded details */}
+            {expanded && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    {[
+                        ['Phone', b.customer_phone],
+                        ['Team', b.team_details || '—'],
+                        ['Advance', `PKR ${fmt(Number(b.advance_amount || 0))}`],
+                        ['Remaining', `PKR ${fmt(Number(b.remaining_amount || 0))}`],
+                        ['Created', b.created_at ? new Date(b.created_at as string).toLocaleString() : '—'],
+                    ].map(([label, value]) => (
+                        <div key={label as string} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{label as string}</span>
+                            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, color: '#fff' }}>{value as string}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+export { BookingCard };
 
 export default function BookingsPage() {
     const [bookings, setBookings] = useState<Array<Record<string, unknown>>>([]);
@@ -148,6 +261,12 @@ export default function BookingsPage() {
         transition: 'all 0.15s',
     });
 
+    const selectStyle: React.CSSProperties = {
+        background: '#111218', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 4,
+        color: '#fff', fontSize: 12, padding: '8px 12px', fontFamily: 'var(--font-ui)',
+        outline: 'none', width: '100%', colorScheme: 'dark', cursor: 'pointer',
+    };
+
     const activeQuickDate = (from: string, to: string) => dateFrom === from && dateTo === to;
     const totalRevenue = bookings.reduce((sum, b) => sum + Number(b.base_price || 0), 0);
     const groundNames = grounds.map(g => g.name);
@@ -160,14 +279,13 @@ export default function BookingsPage() {
                 <span style={{ background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, padding: '2px 12px', fontSize: 13, fontWeight: 600, color: '#8B1A2B', fontFamily: 'var(--font-ui)' }}>{total}</span>
             </div>
 
-            {/* Filter Bar */}
-            <div style={{ background: '#111218', borderRadius: 4, padding: 16, marginBottom: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
-                <div className="bookings-filter-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-                    <input placeholder="Search name, phone, ref..." value={searchQuery} onChange={e => handleSearchInput(e.target.value)} className="bookings-search" style={{
+            {/* ═══ DESKTOP FILTER BAR ═══ */}
+            <div className="desktop-only" style={{ background: '#111218', borderRadius: 4, padding: 16, marginBottom: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+                    <input placeholder="Search name, phone, ref..." value={searchQuery} onChange={e => handleSearchInput(e.target.value)} style={{
                         background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2,
                         color: '#fff', fontSize: 13, padding: '8px 14px', fontFamily: 'var(--font-ui)', outline: 'none', minWidth: 220,
                     }} />
-
                     <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} style={{
                         background: '#111218', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, color: '#fff',
                         fontSize: 12, padding: '8px 10px', fontFamily: 'var(--font-ui)', outline: 'none', colorScheme: 'dark',
@@ -177,27 +295,67 @@ export default function BookingsPage() {
                         background: '#111218', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 2, color: '#fff',
                         fontSize: 12, padding: '8px 10px', fontFamily: 'var(--font-ui)', outline: 'none', colorScheme: 'dark',
                     }} />
-
                     <button onClick={() => setQuickDate(todayStr(), todayStr())} style={pillBtn(activeQuickDate(todayStr(), todayStr()))}>TODAY</button>
                     <button onClick={() => setQuickDate(yesterdayStr(), yesterdayStr())} style={pillBtn(activeQuickDate(yesterdayStr(), yesterdayStr()))}>YESTERDAY</button>
                     <button onClick={() => setQuickDate(weekStartStr(), todayStr())} style={pillBtn(activeQuickDate(weekStartStr(), todayStr()))}>THIS WEEK</button>
                     <button onClick={() => setQuickDate(monthStartStr(), todayStr())} style={pillBtn(activeQuickDate(monthStartStr(), todayStr()))}>THIS MONTH</button>
                 </div>
-
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12, alignItems: 'center' }}>
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.3)', marginRight: 4 }}>GROUND</span>
                     <button onClick={() => { setSelectedGrounds([]); setPage(1); }} style={pillBtn(selectedGrounds.length === 0)}>ALL</button>
                     {groundNames.map(g => <button key={g} onClick={() => toggleGround(g)} style={pillBtn(selectedGrounds.includes(g))}>{g}</button>)}
-
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.3)', marginLeft: 16, marginRight: 4 }}>STATUS</span>
                     <button onClick={() => { setSelectedStatuses([]); setPage(1); }} style={pillBtn(selectedStatuses.length === 0)}>ALL</button>
                     {['confirmed', 'pending', 'cancelled'].map(s => <button key={s} onClick={() => toggleStatus(s)} style={pillBtn(selectedStatuses.includes(s))}>{s.toUpperCase()}</button>)}
-
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.3)', marginLeft: 16, marginRight: 4 }}>PAYMENT</span>
                     <button onClick={() => { setSelectedPayment(''); setPage(1); }} style={pillBtn(!selectedPayment)}>ALL</button>
                     <button onClick={() => { setSelectedPayment('paid'); setPage(1); }} style={pillBtn(selectedPayment === 'paid')}>PAID</button>
                     <button onClick={() => { setSelectedPayment('pending'); setPage(1); }} style={pillBtn(selectedPayment === 'pending')}>UNPAID</button>
                 </div>
+            </div>
+
+            {/* ═══ MOBILE FILTER BAR ═══ */}
+            <div className="mobile-only" style={{ background: '#111218', borderRadius: 4, padding: 16, marginBottom: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
+                <input placeholder="Search name, phone, ref..." value={searchQuery} onChange={e => handleSearchInput(e.target.value)} style={{
+                    background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4,
+                    color: '#fff', fontSize: 13, padding: '10px 14px', fontFamily: 'var(--font-ui)', outline: 'none',
+                    width: '100%', height: 44, marginBottom: 10, boxSizing: 'border-box',
+                }} />
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                    <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} style={{
+                        ...selectStyle, width: '48%', padding: '8px 8px',
+                    }} />
+                    <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} style={{
+                        ...selectStyle, width: '48%', padding: '8px 8px',
+                    }} />
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <button onClick={() => setQuickDate(todayStr(), todayStr())} style={{ ...pillBtn(activeQuickDate(todayStr(), todayStr())), fontSize: 12, borderRadius: 4 }}>TODAY</button>
+                    <button onClick={() => setQuickDate(weekStartStr(), todayStr())} style={{ ...pillBtn(activeQuickDate(weekStartStr(), todayStr())), fontSize: 12, borderRadius: 4 }}>THIS WEEK</button>
+                    <button onClick={() => setQuickDate(monthStartStr(), todayStr())} style={{ ...pillBtn(activeQuickDate(monthStartStr(), todayStr())), fontSize: 12, borderRadius: 4 }}>THIS MONTH</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+                    <select value={selectedGrounds.length === 1 ? selectedGrounds[0] : ''} onChange={e => { setSelectedGrounds(e.target.value ? [e.target.value] : []); setPage(1); }} style={selectStyle}>
+                        <option value="">All Grounds</option>
+                        {groundNames.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                    <select value={selectedStatuses.length === 1 ? selectedStatuses[0] : ''} onChange={e => { setSelectedStatuses(e.target.value ? [e.target.value] : []); setPage(1); }} style={selectStyle}>
+                        <option value="">All Status</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="pending">Pending</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                    <select value={selectedPayment} onChange={e => { setSelectedPayment(e.target.value); setPage(1); }} style={selectStyle}>
+                        <option value="">All</option>
+                        <option value="paid">Paid</option>
+                        <option value="pending">Unpaid</option>
+                    </select>
+                </div>
+                <button onClick={exportCSV} style={{
+                    width: '100%', height: 40, borderRadius: 4, background: 'transparent',
+                    border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)',
+                    fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-ui)', letterSpacing: '0.1em',
+                }}>EXPORT CSV</button>
             </div>
 
             {/* Results bar */}
@@ -206,17 +364,17 @@ export default function BookingsPage() {
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Showing {bookings.length} of {total} bookings</span>
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, color: '#C9A84C' }}>Page Revenue: PKR {fmt(totalRevenue)}</span>
                 </div>
-                <button onClick={exportCSV} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, padding: '6px 16px', cursor: 'pointer', fontFamily: 'var(--font-ui)', letterSpacing: '0.1em' }}>EXPORT CSV</button>
+                <button onClick={exportCSV} className="desktop-only" style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: 600, padding: '6px 16px', cursor: 'pointer', fontFamily: 'var(--font-ui)', letterSpacing: '0.1em' }}>EXPORT CSV</button>
             </div>
 
-            {/* Table */}
-            <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden', marginBottom: 24, opacity: isLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
-                <div style={{ overflowX: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            {/* ═══ DESKTOP TABLE ═══ */}
+            <div className="desktop-only" style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden', marginBottom: 24, opacity: isLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
                         <thead>
                             <tr>
                                 {['#', 'REF', 'GROUND', 'CUSTOMER', 'PHONE', 'DATE', 'TIME', 'DUR', 'TOTAL', 'STATUS', 'PAYMENT', 'ACTIONS'].map(h => (
-                                    <th key={h} className={['DUR', 'PAYMENT', 'PHONE'].includes(h) ? 'hide-mobile' : ''} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textAlign: 'left', padding: '12px 12px', borderBottom: '1px solid rgba(139,26,43,0.3)', whiteSpace: 'nowrap' }}>{h}</th>
+                                    <th key={h} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textAlign: 'left', padding: '12px 12px', borderBottom: '1px solid rgba(139,26,43,0.3)', whiteSpace: 'nowrap' }}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -233,16 +391,16 @@ export default function BookingsPage() {
                                         onMouseLeave={e => { e.currentTarget.style.background = i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent'; }}
                                     >
                                         <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{rowNum}</td>
-                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#C9A84C', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.booking_ref as string}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#C9A84C' }}>{b.booking_ref as string}</td>
                                         <td style={{ padding: '12px' }}><span style={{ background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#8B1A2B' }}>{gName}</span></td>
-                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 500, color: '#fff', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.customer_name as string}</td>
-                                        <td className="hide-mobile" style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.customer_phone as string}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 500, color: '#fff' }}>{b.customer_name as string}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.customer_phone as string}</td>
                                         <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.date as string}</td>
                                         <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap' }}>{fmtTime(b.start_time as string)} → {fmtTime(b.end_time as string)}</td>
-                                        <td className="hide-mobile" style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.duration_hours as number}h</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.duration_hours as number}h</td>
                                         <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(Number(b.base_price))}</td>
                                         <td style={{ padding: '12px' }}><span style={{ background: st.bg, border: `1px solid ${st.border}`, borderRadius: 12, padding: '2px 8px', fontSize: 10, fontWeight: 600, color: st.color, whiteSpace: 'nowrap' }}>{st.label}</span></td>
-                                        <td className="hide-mobile" style={{ padding: '12px' }}>
+                                        <td style={{ padding: '12px' }}>
                                             <span style={{
                                                 background: b.payment_status === 'paid' ? 'rgba(0,166,81,0.15)' : 'rgba(201,168,76,0.15)',
                                                 border: `1px solid ${b.payment_status === 'paid' ? 'rgba(0,166,81,0.4)' : 'rgba(201,168,76,0.4)'}`,
@@ -251,7 +409,7 @@ export default function BookingsPage() {
                                             }}>{(b.payment_status as string).toUpperCase()}</span>
                                         </td>
                                         <td style={{ padding: '12px' }}>
-                                            <div className="bookings-actions" style={{ display: 'flex', gap: 6 }}>
+                                            <div style={{ display: 'flex', gap: 6 }}>
                                                 <button onClick={() => setExpandedRow(isExpanded ? null : b.booking_ref as string)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 600, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>{isExpanded ? 'CLOSE' : 'VIEW'}</button>
                                                 {b.payment_status === 'pending' && b.booking_status === 'confirmed' && (
                                                     <button onClick={() => handleMarkPaid(b.booking_ref as string)} style={{ background: 'transparent', border: '1px solid rgba(0,166,81,0.4)', borderRadius: 2, color: '#00a651', fontSize: 10, fontWeight: 600, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>PAID</button>
@@ -265,7 +423,7 @@ export default function BookingsPage() {
                                         {isExpanded && (
                                             <tr key={`${b.booking_ref}-exp`}>
                                                 <td colSpan={12} style={{ padding: '16px 24px', background: 'rgba(139,26,43,0.04)', borderBottom: '1px solid rgba(139,26,43,0.15)' }}>
-                                                    <div className="bookings-expanded-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
                                                         <div>
                                                             <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: '#C9A84C', marginBottom: 8 }}>CUSTOMER</div>
                                                             {[['Name', b.customer_name], ['Phone', b.customer_phone], ['Team', b.team_details || '—']].map(([l, v]) => (
@@ -305,6 +463,18 @@ export default function BookingsPage() {
                 </div>
             </div>
 
+            {/* ═══ MOBILE CARD VIEW ═══ */}
+            <div className="mobile-only" style={{ opacity: isLoading ? 0.5 : 1, transition: 'opacity 0.2s', marginBottom: 24 }}>
+                {bookings.length === 0 && (
+                    <div style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-ui)', fontSize: 14, background: '#111218', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)' }}>
+                        {isLoading ? 'Loading...' : 'No bookings found'}
+                    </div>
+                )}
+                {bookings.map(b => (
+                    <BookingCard key={b.booking_ref as string} b={b} onMarkPaid={handleMarkPaid} onCancel={handleCancel} />
+                ))}
+            </div>
+
             {/* Pagination */}
             {totalPages > 1 && (
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}>
@@ -333,32 +503,14 @@ export default function BookingsPage() {
                     }}>NEXT →</button>
                 </div>
             )}
-            {/* Mobile responsive bookings styles */}
+
+            {/* Responsive styles */}
             <style>{`
+                .desktop-only { display: block; }
+                .mobile-only { display: none; }
                 @media (max-width: 768px) {
-                    .bookings-search {
-                        width: 100% !important;
-                        min-width: 0 !important;
-                        height: 44px;
-                    }
-                    .bookings-filter-row {
-                        gap: 8px !important;
-                    }
-                    .bookings-filter-row button {
-                        padding: 6px 10px !important;
-                        font-size: 11px !important;
-                    }
-                    .bookings-actions {
-                        flex-direction: column !important;
-                        gap: 4px !important;
-                    }
-                    .bookings-actions button {
-                        width: 100% !important;
-                    }
-                    .bookings-expanded-grid {
-                        grid-template-columns: 1fr !important;
-                        gap: 16px !important;
-                    }
+                    .desktop-only { display: none !important; }
+                    .mobile-only { display: block !important; }
                 }
             `}</style>
         </div>
