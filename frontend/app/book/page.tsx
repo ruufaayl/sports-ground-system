@@ -104,9 +104,24 @@ function AvailabilityBar({ slots }: { slots: AvailSlot[] }) {
                     );
                 })}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-ui)' }}>12PM</span>
-                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-ui)' }}>5AM</span>
+            <div style={{ position: 'relative', marginTop: 4, height: 14 }}>
+                {[
+                    { hour: 12, label: '12PM' },
+                    { hour: 15, label: '3PM' },
+                    { hour: 18, label: '6PM' },
+                    { hour: 21, label: '9PM' },
+                    { hour: 0, label: '12AM' },
+                    { hour: 3, label: '3AM' },
+                ].map(({ hour, label }) => {
+                    const index = hoursToShow.indexOf(hour);
+                    const percentage = (index / (hoursToShow.length - 1)) * 100;
+                    return (
+                        <span key={hour} style={{
+                            position: 'absolute', left: `${percentage}%`, transform: 'translateX(-50%)',
+                            fontSize: 9, color: 'rgba(255,255,255,0.35)', fontFamily: 'var(--font-ui)', whiteSpace: 'nowrap',
+                        }}>{label}</span>
+                    );
+                })}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
