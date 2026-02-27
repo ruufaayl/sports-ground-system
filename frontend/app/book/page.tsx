@@ -70,7 +70,7 @@ interface AvailSlot {
 
 // ── Availability Bar ──────────────────────────────────────────────────────────
 function AvailabilityBar({ slots }: { slots: AvailSlot[] }) {
-    const hoursToShow = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+    const hoursToShow = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
     const currentHour = new Date().getHours();
 
     return (
@@ -105,8 +105,8 @@ function AvailabilityBar({ slots }: { slots: AvailSlot[] }) {
                 })}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-ui)' }}>6AM</span>
-                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-ui)' }}>12AM</span>
+                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-ui)' }}>12PM</span>
+                <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--font-ui)' }}>5AM</span>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>

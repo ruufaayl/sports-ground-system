@@ -73,7 +73,7 @@ function AvailabilityTimeline({
     slots: AvailSlot[]; selectedHour24: number;
     onHourClick: (hour: number) => void; loading: boolean; isToday: boolean;
 }) {
-    const hoursToShow = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+    const hoursToShow = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
     const currentHour = new Date().getHours();
     const [hoverHour, setHoverHour] = useState<number | null>(null);
 
@@ -154,10 +154,10 @@ function AvailabilityTimeline({
 
 // ─── Hours roulette wheel ─────────────────────────────────────────────────────
 function HourWheel({
-    selectedIndex, onSelect, bookedHours, pastHours,
+    selectedIndex, onSelect, bookedSlots, isPM, isToday, currentHour,
 }: {
     selectedIndex: number; onSelect: (i: number) => void;
-    bookedHours: Set<number>; pastHours: Set<number>;
+    bookedSlots: AvailSlot[]; isPM: boolean; isToday: boolean; currentHour: number;
 }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const isDragging = useRef(false);
@@ -246,6 +246,9 @@ function HourWheel({
 
     useEffect(() => { snap(selectedIndex); }, []);
 
+    // Helper: get 24h value for a wheel item
+    const getHour24 = (h12: number) => isPM ? (h12 === 12 ? 12 : h12 + 12) : (h12 === 12 ? 0 : h12);
+
     return (
         <div
             ref={containerRef}
@@ -273,8 +276,27 @@ function HourWheel({
             >
                 {HOURS.map((h, i) => {
                     const dist = Math.abs(i - selectedIndex);
-                    // Check if this hour (in both AM and PM) is booked/past
-                    const isBookedOrPast = bookedHours.has(h) || bookedHours.has(h + 12) || pastHours.has(h) || pastHours.has(h + 12);
+                    const h24 = getHour24(h);
+                    const slot = bookedSlots.find(s => s.hour === h24);
+                    const isBooked = slot ? !slot.available : false;
+                    const isPast = isToday && h24 < currentHour;
+                    const isCentered = dist === 0;
+
+                    // Determine styles per state
+                    let itemColor = dist === 0 ? '#fff' : '#888';
+                    let itemOpacity = dist === 0 ? 1 : dist === 1 ? 0.6 : 0.35;
+                    let textDeco = 'none';
+                    let decoColor: string | undefined = undefined;
+
+                    if (isBooked) {
+                        itemColor = 'rgba(139,26,43,0.7)';
+                        itemOpacity = isCentered ? 0.5 : 0.25;
+                        textDeco = 'line-through';
+                        decoColor = 'rgba(139,26,43,0.8)';
+                    } else if (isPast) {
+                        itemColor = 'rgba(255,255,255,0.2)';
+                        itemOpacity = 0.2;
+                    }
 
                     return (
                         <div key={i} style={{
@@ -282,18 +304,19 @@ function HourWheel({
                             fontFamily: "var(--font-heading)",
                             fontSize: dist === 0 ? 48 : dist === 1 ? 32 : 22,
                             fontWeight: dist === 0 ? 700 : 400,
-                            color: dist === 0 ? '#fff' : '#888',
-                            opacity: dist === 0 ? 1 : dist === 1 ? 0.6 : 0.35,
+                            color: itemColor,
+                            opacity: itemOpacity,
                             transform: `scale(${dist === 0 ? 1 : dist === 1 ? 0.85 : 0.7})`,
-                            transition: 'font-size 0.1s, color 0.1s, opacity 0.1s',
+                            transition: 'font-size 0.1s, color 0.15s, opacity 0.15s',
                             userSelect: 'none',
                             letterSpacing: '0.02em',
                             position: 'relative',
+                            background: isBooked && isCentered ? 'rgba(139,26,43,0.08)' : 'transparent',
                         }}>
                             <span style={{
-                                textDecoration: isBookedOrPast ? 'line-through' : 'none',
-                                textDecorationColor: isBookedOrPast ? 'rgba(139,26,43,0.8)' : undefined,
-                                color: isBookedOrPast && dist === 0 ? 'rgba(139,26,43,0.6)' : undefined,
+                                textDecoration: textDeco,
+                                textDecorationColor: decoColor,
+                                textDecorationThickness: '2px',
                             }}>
                                 {h}
                             </span>
@@ -414,13 +437,45 @@ function ScheduleInner() {
     const startDisplay = fmt24to12(hour24);
     const endDisplay = fmt24to12(endHour24);
 
-    // Check if selected hour is unavailable
-    const isSelectedBooked = bookedSlots.find(s => s.hour === hour24 && !s.available);
-
     // Is today?
     const isToday = selectedDate === days[0].label;
     const currentHour = new Date().getHours();
-    const isSelectedPast = isToday && hour24 < currentHour;
+
+    // Helper: check if a 24h hour is unavailable
+    const isHourUnavailable = useCallback((h24: number) => {
+        const slot = bookedSlots.find(s => s.hour === h24);
+        if (slot && !slot.available) return true;
+        if (isToday && h24 < currentHour) return true;
+        return false;
+    }, [bookedSlots, isToday, currentHour]);
+
+    // Snap to nearest available hour if currently on a booked one
+    const snapToNearestAvailable = useCallback((attemptedHour: number): number => {
+        if (!isHourUnavailable(attemptedHour)) return attemptedHour;
+        for (let offset = 1; offset <= 12; offset++) {
+            const nextH = (attemptedHour + offset) % 24;
+            if (!isHourUnavailable(nextH)) return nextH;
+            const prevH = (attemptedHour - offset + 24) % 24;
+            if (!isHourUnavailable(prevH)) return prevH;
+        }
+        return attemptedHour;
+    }, [isHourUnavailable]);
+
+    // Auto-snap away from booked/past hours
+    useEffect(() => {
+        if (bookedSlots.length === 0) return;
+        if (isHourUnavailable(hour24)) {
+            const available = snapToNearestAvailable(hour24);
+            if (available !== hour24) {
+                const h12 = available % 12 === 0 ? 12 : available % 12;
+                const idx = HOURS.indexOf(h12);
+                if (idx >= 0) {
+                    setHourIdx(idx);
+                    setIsPM(available >= 12);
+                }
+            }
+        }
+    }, [hour24, bookedSlots, isHourUnavailable, snapToNearestAvailable]);
 
     // Max duration
     const maxDuration = getMaxDuration(hour24, bookedSlots);
@@ -429,16 +484,6 @@ function ScheduleInner() {
     useEffect(() => {
         if (duration > maxDuration) setDuration(maxDuration);
     }, [maxDuration, duration]);
-
-    // Compute booked/past hour sets for wheel display
-    const bookedHourSet = new Set<number>();
-    const pastHourSet = new Set<number>();
-    for (const s of bookedSlots) {
-        if (!s.available) bookedHourSet.add(s.hour);
-    }
-    if (isToday) {
-        for (let h = 0; h < currentHour; h++) pastHourSet.add(h);
-    }
 
     // Handle clicking on timeline segment
     const handleTimelineClick = (hour: number) => {
@@ -479,7 +524,7 @@ function ScheduleInner() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedDate, startTime, endTime, groundId]);
 
-    const canContinue = available === true && !checking && !isSelectedBooked && !isSelectedPast;
+    const canContinue = available === true && !checking && !isHourUnavailable(hour24);
     const handleContinue = () => {
         if (!canContinue || !price) return;
         localStorage.setItem('bookingProgress', JSON.stringify({
@@ -575,24 +620,14 @@ function ScheduleInner() {
                             Start Hour
                         </div>
 
-                        {/* Unavailable warning */}
-                        {(isSelectedBooked || isSelectedPast) && (
-                            <div style={{
-                                background: 'rgba(139,26,43,0.15)', border: '1px solid rgba(139,26,43,0.3)',
-                                borderRadius: 8, padding: '8px 14px', marginBottom: 16, textAlign: 'center',
-                            }}>
-                                <span style={{ fontFamily: 'var(--font-ui)', fontSize: 12, fontWeight: 600, color: '#e74c3c', letterSpacing: '0.05em' }}>
-                                    {isSelectedPast ? '⏰ This hour has passed' : '🚫 This hour is booked'}
-                                </span>
-                            </div>
-                        )}
-
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
                             <HourWheel
                                 selectedIndex={hourIdx}
                                 onSelect={setHourIdx}
-                                bookedHours={bookedHourSet}
-                                pastHours={pastHourSet}
+                                bookedSlots={bookedSlots}
+                                isPM={isPM}
+                                isToday={isToday}
+                                currentHour={currentHour}
                             />
 
                             {/* AM/PM toggle */}
