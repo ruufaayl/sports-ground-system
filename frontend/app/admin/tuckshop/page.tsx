@@ -17,13 +17,17 @@ interface Sale {
     quantity: number;
     unit_price: number;
     total_price: number;
+    total: number;
     payment_method: string;
     created_at: string;
+    sold_at: string;
 }
 
 export default function TuckShopPage() {
     const [sales, setSales] = useState<Sale[]>([]);
     const [total, setTotal] = useState(0);
+    const [cashTotal, setCashTotal] = useState(0);
+    const [onlineTotal, setOnlineTotal] = useState(0);
     const [modalOpen, setModalOpen] = useState(false);
     const [itemName, setItemName] = useState('');
     const [quantity, setQuantity] = useState('1');
@@ -33,33 +37,66 @@ export default function TuckShopPage() {
 
     const loadData = useCallback(async () => {
         try {
-            const data = await adminFetch<{ sales: Sale[]; total: number }>('/api/tuckshop/today');
-            setSales(data.sales);
-            setTotal(data.total);
+            const data = await adminFetch<{ sales: Sale[]; total: number; summary?: { total: number; cash: number; online: number; count: number } }>('/api/tuckshop/today');
+            setSales(data.sales || []);
+            if (data.summary) {
+                setTotal(data.summary.total);
+                setCashTotal(data.summary.cash);
+                setOnlineTotal(data.summary.online);
+            } else {
+                // Fallback: compute from sales
+                const t = (data.sales || []).reduce((sum, s) => sum + Number(s.total_price || s.total || 0), 0);
+                const c = (data.sales || []).filter(s => s.payment_method === 'cash').reduce((sum, s) => sum + Number(s.total_price || s.total || 0), 0);
+                setTotal(t);
+                setCashTotal(c);
+                setOnlineTotal(t - c);
+            }
         } catch { /* ignore */ }
     }, []);
 
     useEffect(() => { loadData(); }, [loadData]);
 
-    const cashTotal = sales.filter(s => s.payment_method === 'cash').reduce((sum, s) => sum + Number(s.total_price), 0);
-    const onlineTotal = total - cashTotal;
-
     const handleAddSale = async () => {
-        if (!itemName || !quantity || !unitPrice) { alert('Fill all fields'); return; }
+        if (!itemName || !quantity || !unitPrice) {
+            alert('Please fill all required fields');
+            return;
+        }
+        if (Number(quantity) <= 0 || Number(unitPrice) <= 0) {
+            alert('Quantity and price must be greater than 0');
+            return;
+        }
         setSubmitting(true);
         try {
+            const payload = {
+                itemName,
+                quantity: Number(quantity),
+                unitPrice: Number(unitPrice),
+                paymentMethod,
+            };
+            console.log('Sending sale:', payload);
+
             await adminFetch('/api/tuckshop/sale', {
                 method: 'POST',
-                body: JSON.stringify({ itemName, quantity: Number(quantity), unitPrice: Number(unitPrice), paymentMethod }),
+                body: JSON.stringify(payload),
             });
             setModalOpen(false);
-            setItemName(''); setQuantity('1'); setUnitPrice('');
+            setItemName(''); setQuantity('1'); setUnitPrice(''); setPaymentMethod('cash');
             loadData();
-        } catch { alert('Failed to add sale'); }
+        } catch (err) {
+            alert('Failed to add sale: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        }
         finally { setSubmitting(false); }
     };
 
     const computedTotal = Number(quantity || 0) * Number(unitPrice || 0);
+
+    // Helper to get sale total (handles both column names)
+    const getSaleTotal = (s: Sale) => Number(s.total_price || s.total || 0);
+    // Helper to get sale time
+    const getSaleTime = (s: Sale) => {
+        const ts = s.sold_at || s.created_at;
+        return ts ? new Date(ts).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' }) : '—';
+    };
 
     return (
         <div>
@@ -113,11 +150,11 @@ export default function TuckShopPage() {
                                         <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 500, color: '#fff' }}>{s.item_name}</td>
                                         <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>{s.quantity}</td>
                                         <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>PKR {fmt(s.unit_price)}</td>
-                                        <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#fff' }}>PKR {fmt(s.total_price)}</td>
+                                        <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#fff' }}>PKR {fmt(getSaleTotal(s))}</td>
                                         <td style={{ padding: '12px 16px' }}>
                                             <span style={{ background: ps.bg, border: `1px solid ${ps.border}`, borderRadius: 12, padding: '2px 10px', fontSize: 10, fontWeight: 600, color: ps.color, textTransform: 'uppercase' }}>{s.payment_method}</span>
                                         </td>
-                                        <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{new Date(s.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</td>
+                                        <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{getSaleTime(s)}</td>
                                     </tr>
                                 );
                             })}
@@ -155,7 +192,7 @@ export default function TuckShopPage() {
                         {/* Total display */}
                         <div style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 2, padding: 16, marginBottom: 20, textAlign: 'center' }}>
                             <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: '#C9A84C', marginBottom: 6 }}>TOTAL</div>
-                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 32, fontWeight: 800, color: '#C9A84C' }}>PKR {fmt(computedTotal)}</div>
+                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 32, fontWeight: 800, color: '#C9A84C' }}>PKR {computedTotal.toLocaleString('en-PK')}</div>
                         </div>
 
                         {/* Payment method */}

@@ -31,7 +31,12 @@ const NAV_SECTIONS = [
     },
 ];
 
-function SidebarContent({ pathname, onNavClick, handleLogout }: { pathname: string; onNavClick: () => void; handleLogout: () => void }) {
+function SidebarContent({ pathname, onNavClick, handleLogout, role }: { pathname: string; onNavClick: () => void; handleLogout: () => void; role: string }) {
+    // Filter nav for staff: only show Tuck Shop
+    const filteredSections = role === 'staff'
+        ? [{ label: '', items: NAV_SECTIONS.flatMap(s => s.items).filter(item => item.href === '/admin/tuckshop') }]
+        : NAV_SECTIONS;
+
     return (
         <>
             {/* Top: Logo + title */}
@@ -43,22 +48,40 @@ function SidebarContent({ pathname, onNavClick, handleLogout }: { pathname: stri
                     </div>
                 </div>
                 <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)', marginBottom: 12 }} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '0 2px' }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00a651', boxShadow: '0 0 8px #00a651', animation: 'pulse-dot 2s infinite' }} />
-                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>SYSTEM ONLINE</span>
-                </div>
+
+                {/* Staff badge */}
+                {role === 'staff' && (
+                    <div style={{
+                        fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 700,
+                        letterSpacing: '0.3em', color: '#C9A84C', textAlign: 'center',
+                        background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)',
+                        borderRadius: 4, padding: '4px 12px', marginBottom: 12,
+                    }}>
+                        STAFF ACCESS
+                    </div>
+                )}
+
+                {/* System online indicator (admin only) */}
+                {role !== 'staff' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '0 2px' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00a651', boxShadow: '0 0 8px #00a651', animation: 'pulse-dot 2s infinite' }} />
+                        <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>SYSTEM ONLINE</span>
+                    </div>
+                )}
             </div>
 
             {/* Nav */}
             <nav style={{ flex: 1, padding: '8px 12px', overflow: 'auto' }}>
-                {NAV_SECTIONS.map((section) => (
-                    <div key={section.label}>
-                        <div style={{
-                            fontSize: 10, fontWeight: 600, letterSpacing: '0.3em', textTransform: 'uppercase',
-                            color: 'rgba(201,168,76,0.6)', margin: '24px 0 8px 8px', fontFamily: 'var(--font-ui)',
-                        }}>
-                            {section.label}
-                        </div>
+                {filteredSections.map((section) => (
+                    <div key={section.label || 'staff-nav'}>
+                        {section.label && (
+                            <div style={{
+                                fontSize: 10, fontWeight: 600, letterSpacing: '0.3em', textTransform: 'uppercase',
+                                color: 'rgba(201,168,76,0.6)', margin: '24px 0 8px 8px', fontFamily: 'var(--font-ui)',
+                            }}>
+                                {section.label}
+                            </div>
+                        )}
                         {section.items.map((item) => {
                             const active = pathname === item.href || (item.href !== '/admin/availability' && pathname.startsWith(item.href));
                             return (
@@ -93,7 +116,7 @@ function SidebarContent({ pathname, onNavClick, handleLogout }: { pathname: stri
             {/* Footer */}
             <div style={{ padding: 16, borderTop: '1px solid rgba(139,26,43,0.15)' }}>
                 <div style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 12, padding: '0 4px' }}>
-                    Administrator
+                    {role === 'staff' ? 'Staff' : 'Administrator'}
                 </div>
                 <button
                     onClick={handleLogout}
@@ -117,6 +140,7 @@ function SidebarContent({ pathname, onNavClick, handleLogout }: { pathname: stri
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const [isAuthed, setIsAuthed] = useState(false);
+    const [role, setRole] = useState('admin');
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
@@ -124,8 +148,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     useEffect(() => {
         const s = localStorage.getItem('adminSecret');
+        const r = localStorage.getItem('adminRole') || 'admin';
+        setRole(r);
+
         if (!s && !isLogin) { router.push('/admin'); return; }
-        if (s && isLogin) { router.push('/admin/dashboard'); return; }
+        if (s && isLogin) {
+            router.push(r === 'staff' ? '/admin/tuckshop' : '/admin/dashboard');
+            return;
+        }
+
+        // Staff restriction: only allow /admin/tuckshop
+        if (s && r === 'staff' && !isLogin && pathname !== '/admin/tuckshop') {
+            router.push('/admin/tuckshop');
+            return;
+        }
+
         setIsAuthed(true);
     }, [pathname, isLogin, router]);
 
@@ -135,7 +172,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (!isAuthed && !isLogin) return null;
     if (isLogin) return <div style={{ background: '#0D0608', minHeight: '100vh', fontFamily: 'var(--font-ui)' }}>{children}</div>;
 
-    const handleLogout = () => { localStorage.removeItem('adminSecret'); router.push('/admin'); };
+    const handleLogout = () => {
+        localStorage.removeItem('adminSecret');
+        localStorage.removeItem('adminRole');
+        router.push('/admin');
+    };
 
     return (
         <div className="admin-layout" style={{ display: 'flex', background: '#0D0608', minHeight: '100vh', fontFamily: 'var(--font-ui)', color: '#fff', overflowX: 'hidden', maxWidth: '100vw' }}>
@@ -151,7 +192,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     overflow: 'hidden',
                 }}
             >
-                <SidebarContent pathname={pathname} onNavClick={() => { }} handleLogout={handleLogout} />
+                <SidebarContent pathname={pathname} onNavClick={() => { }} handleLogout={handleLogout} role={role} />
             </div>
 
             {/* ═══ MOBILE OVERLAY + SIDEBAR ═══ */}
@@ -186,7 +227,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                 overflow: 'hidden', zIndex: 1000,
                             }}
                         >
-                            <SidebarContent pathname={pathname} onNavClick={() => setMobileMenuOpen(false)} handleLogout={handleLogout} />
+                            <SidebarContent pathname={pathname} onNavClick={() => setMobileMenuOpen(false)} handleLogout={handleLogout} role={role} />
                         </motion.div>
                     </>
                 )}
