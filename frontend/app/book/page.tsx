@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import type { PricingRule } from '../../lib/types';
+import { getPKTDate, getPKTHour } from '../../lib/dateUtils';
 import StepIndicator from '../components/StepIndicator';
 import { playSelect, playTick } from '../lib/sounds';
 
@@ -71,7 +72,7 @@ interface AvailSlot {
 // ── Availability Bar ──────────────────────────────────────────────────────────
 function AvailabilityBar({ slots }: { slots: AvailSlot[] }) {
     const hoursToShow = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
-    const currentHour = new Date().getHours();
+    const currentHour = getPKTHour();
 
     return (
         <div style={{ padding: '8px 0 2px 0' }}>
@@ -131,7 +132,7 @@ function AvailabilityBar({ slots }: { slots: AvailSlot[] }) {
 
 // ── Slots Badge ───────────────────────────────────────────────────────────────
 function SlotsBadge({ slots }: { slots: AvailSlot[] }) {
-    const currentHour = new Date().getHours();
+    const currentHour = getPKTHour();
     const availableCount = slots.filter(s => s.available && s.hour >= currentHour && s.hour >= 6).length;
 
     let bg: string, border: string, color: string, text: string;
@@ -331,7 +332,7 @@ export default function BookPage() {
     useEffect(() => {
         if (!grounds || grounds.length === 0) return;
         const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-        const today = new Date().toISOString().split('T')[0];
+        const today = getPKTDate();
 
         Promise.all(
             grounds.map(async (ground) => {

@@ -4,6 +4,8 @@ const { requireStaff } = require('../middleware/auth');
 
 const router = express.Router();
 
+const getPKTDate = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+
 // POST /api/tuckshop/sale
 router.post('/sale', requireStaff, async (req, res) => {
     try {
@@ -27,8 +29,8 @@ router.post('/sale', requireStaff, async (req, res) => {
                 unit_price: Number(unitPrice),
                 total_price: total,
                 payment_method: paymentMethod,
-                sale_date: new Date().toISOString().split('T')[0],
-                sold_at: new Date().toISOString(),
+                sale_date: getPKTDate(),
+                sold_at: new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Karachi' }),
             })
             .select()
             .single();
@@ -49,7 +51,7 @@ router.post('/sale', requireStaff, async (req, res) => {
 // GET /api/tuckshop/today
 router.get('/today', requireStaff, async (req, res) => {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getPKTDate();
 
         // Try sold_at first, fallback to sale_date
         let { data: sales, error } = await supabase

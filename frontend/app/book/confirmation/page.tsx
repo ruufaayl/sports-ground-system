@@ -4,26 +4,18 @@ import { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { formatDisplayDate, formatTime as fmtTime } from '../../../lib/dateUtils';
 import { playConfirm } from '../../lib/sounds';
 import type { Booking } from '../../../lib/types';
 
 function fmt(n: number) { return Math.round(Number(n)).toLocaleString('en-PK'); }
 
 function formatTime(time: string): string {
-    if (!time) return '';
-    const [hours, minutes] = time.split(':');
-    const h = parseInt(hours, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayHour = h % 12 === 0 ? 12 : h % 12;
-    return `${displayHour}:${minutes} ${ampm}`;
+    return fmtTime(time);
 }
 
 function formatDateLong(dateStr: string): string {
-    if (!dateStr) return '';
-    const d = new Date(dateStr + 'T00:00:00');
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    return formatDisplayDate(dateStr);
 }
 
 // ── Celebration Particles (CSS keyframes, not canvas) ─────────────────────────

@@ -1,3 +1,4 @@
+process.env.TZ = 'Asia/Karachi';
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const express = require('express');
 const helmet = require('helmet');

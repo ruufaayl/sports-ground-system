@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { createBooking } from '../../../lib/api';
+import { formatDateShort, formatTime } from '../../../lib/dateUtils';
 import StepIndicator from '../../components/StepIndicator';
 import { playSelect, playConfirm } from '../../lib/sounds';
 import type { BookingFormData } from '../../../lib/types';
@@ -11,20 +12,11 @@ import type { BookingFormData } from '../../../lib/types';
 function fmt(n: number) { return Math.round(n).toLocaleString('en-PK'); }
 
 function fmt24to12(time: string): string {
-    if (!time) return '';
-    const [hours, minutes] = time.split(':');
-    const h = parseInt(hours, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const displayHour = h % 12 === 0 ? 12 : h % 12;
-    return `${displayHour}:${minutes || '00'} ${ampm}`;
+    return formatTime(time);
 }
 
 function formatDatePretty(dateStr: string): string {
-    if (!dateStr) return '';
-    const d = new Date(dateStr + 'T00:00:00');
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+    return formatDateShort(dateStr);
 }
 
 // ── Floating Field v2 ─────────────────────────────────────────────────────────

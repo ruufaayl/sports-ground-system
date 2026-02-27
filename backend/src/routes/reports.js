@@ -3,6 +3,8 @@ const supabase = require('../services/supabase');
 const { requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
+
+const getPKTDate = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
 router.use(requireAdmin);
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -87,7 +89,7 @@ router.get('/daily/:date', async (req, res, next) => {
 // POST /api/reports/send-daily
 router.post('/send-daily', async (req, res, next) => {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getPKTDate();
 
         const { data: bookings } = await supabase
             .from('bookings')
@@ -142,8 +144,9 @@ router.post('/send-daily', async (req, res, next) => {
 router.get('/summary', async (req, res, next) => {
     try {
         const now = new Date();
-        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const today = now.toISOString().split('T')[0];
+        const pad2 = n => String(n).padStart(2, '0');
+        const firstOfMonth = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-01`;
+        const today = getPKTDate();
 
         const { data: monthBookings, error: mError } = await supabase
             .from('bookings').select('base_price').gte('date', firstOfMonth).eq('payment_status', 'paid');

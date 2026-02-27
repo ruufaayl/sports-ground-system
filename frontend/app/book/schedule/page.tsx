@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { checkAvailability } from '../../../lib/api';
+import { getPKTDate, getPKTHour, parseLocalDate } from '../../../lib/dateUtils';
 import StepIndicator from '../../components/StepIndicator';
 import { playTick, playSelect } from '../../lib/sounds';
 
@@ -32,15 +33,16 @@ function fmt24to12(hour24: number): string {
 
 function genDays(count = 14) {
     const days: { label: string; day: string; num: string; month: string; fullDay: string }[] = [];
-    const today = new Date(); today.setHours(0, 0, 0, 0);
     const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const FULL_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const MON_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     for (let i = 0; i < count; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() + i);
+        const future = new Date();
+        future.setDate(future.getDate() + i);
+        const dateStr = getPKTDate(future);
+        const d = parseLocalDate(dateStr);
         days.push({
-            label: d.toISOString().split('T')[0],
+            label: dateStr,
             day: DAY_NAMES[d.getDay()],
             fullDay: FULL_DAY_NAMES[d.getDay()],
             num: String(d.getDate()).padStart(2, '0'),
@@ -74,7 +76,7 @@ function AvailabilityTimeline({
     onHourClick: (hour: number) => void; loading: boolean; isToday: boolean;
 }) {
     const hoursToShow = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
-    const currentHour = new Date().getHours();
+    const currentHour = getPKTHour();
     const [hoverHour, setHoverHour] = useState<number | null>(null);
 
     if (loading) {
@@ -442,7 +444,7 @@ function ScheduleInner() {
 
     // Is today?
     const isToday = selectedDate === days[0].label;
-    const currentHour = new Date().getHours();
+    const currentHour = getPKTHour();
 
     // Helper: check if a 24h hour is unavailable
     const isHourUnavailable = useCallback((h24: number) => {
