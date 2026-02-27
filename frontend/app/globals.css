@@ -53,7 +53,13 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  cursor: none;
+}
+
+/* Hide default cursor only on desktop devices with a mouse */
+@media (hover: hover) and (pointer: fine) {
+  * {
+    cursor: none;
+  }
 }
 
 /* ─── Text Selection ─────────────────────────────────────────────────────── */
@@ -106,7 +112,7 @@ body {
   font-size: 18px;
   letter-spacing: 0.2em;
   padding: 16px 40px;
-  cursor: none;
+  cursor: pointer;
   transition: background var(--transition), color var(--transition), box-shadow var(--transition), transform var(--transition);
   box-shadow: 0 0 40px rgba(139, 26, 43, 0.5);
   position: relative;
@@ -439,7 +445,7 @@ body {
   padding: 16px 32px;
   border-radius: 999px;
   border: 1px solid var(--gold);
-  cursor: none;
+  cursor: pointer;
   transition: background var(--transition), color var(--transition), box-shadow var(--transition);
   box-shadow: 0 0 30px rgba(139, 26, 43, 0.4);
 }
@@ -534,7 +540,7 @@ body {
   font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  cursor: none;
+  cursor: pointer;
   overflow: hidden;
   transition: border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),

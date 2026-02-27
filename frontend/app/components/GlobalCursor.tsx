@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function GlobalCursor() {
+    const [isMobile, setIsMobile] = useState(false);
     const cursorRef = useRef<HTMLDivElement>(null);
     const trailRefs = useRef<HTMLDivElement[]>([]);
     const mousePos = useRef({ x: -100, y: -100 });
@@ -12,6 +13,11 @@ export default function GlobalCursor() {
     );
     const isHovering = useRef(false);
     const rafId = useRef<number>(0);
+
+    useEffect(() => {
+        const mobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        setIsMobile(mobile);
+    }, []);
 
     useEffect(() => {
         const cursor = cursorRef.current;
@@ -77,6 +83,8 @@ export default function GlobalCursor() {
             cancelAnimationFrame(rafId.current);
         };
     }, []);
+
+    if (isMobile) return null;
 
     return (
         <>

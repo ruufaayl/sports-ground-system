@@ -164,21 +164,6 @@ export default function HomePage() {
 
       <PlayerCardsShowcase />
 
-      <button
-        onClick={toggleSound}
-        style={{
-          position: 'fixed', top: 20, right: 24, zIndex: 1000,
-          background: 'rgba(139,26,43,0.2)',
-          border: '1px solid rgba(201,168,76,0.3)',
-          borderRadius: '50%', width: 44, height: 44,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 18, cursor: 'none', color: '#C9A84C',
-          backdropFilter: 'blur(8px)', transition: 'all 0.2s',
-        }}
-      >
-        {soundOn ? '🔊' : '🔇'}
-      </button>
-
       {/* ═══ Hero content ═══ */}
       <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', padding: '40px 20px' }}>
 
