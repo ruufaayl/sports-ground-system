@@ -89,7 +89,7 @@ export default function DashboardPage() {
             </div>
 
             {/* KPI Row */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
+            <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
                 {kpis.map((kpi) => (
                     <div key={kpi.label} style={{
                         background: '#111218', border: '1px solid rgba(255,255,255,0.06)',
@@ -102,7 +102,7 @@ export default function DashboardPage() {
                         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: kpi.accent }} />
                         <div style={{ position: 'absolute', top: 16, right: 16, width: 32, height: 32, borderRadius: '50%', background: `${kpi.accent}26`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{kpi.icon}</div>
                         <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', marginBottom: 8 }}>{kpi.label}</div>
-                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 36, fontWeight: 800, color: '#fff', lineHeight: 1, marginBottom: 4 }}>{kpi.value}</div>
+                        <div className="kpi-value" style={{ fontFamily: 'var(--font-ui)', fontSize: 36, fontWeight: 800, color: '#fff', lineHeight: 1, marginBottom: 4 }}>{kpi.value}</div>
                         <div style={{ fontFamily: 'var(--font-ui)', fontSize: 12, fontWeight: 400, color: 'rgba(255,255,255,0.4)' }}>{kpi.sub}</div>
                     </div>
                 ))}
@@ -126,12 +126,12 @@ export default function DashboardPage() {
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>
                     <span style={{ fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: '0.1em' }}>RECENT BOOKINGS</span>
                 </div>
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                <div style={{ overflowX: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr>
                                 {['REF', 'GROUND', 'CUSTOMER', 'PHONE', 'TIME', 'AMOUNT', 'STATUS', 'ACTION'].map((h) => (
-                                    <th key={h} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>{h}</th>
+                                    <th key={h} className={['PHONE', 'AMOUNT'].includes(h) ? 'hide-mobile' : ''} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -147,14 +147,14 @@ export default function DashboardPage() {
                                         onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(139,26,43,0.06)'; }}
                                         onMouseLeave={(e) => { e.currentTarget.style.background = i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent'; }}
                                     >
-                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#C9A84C', fontVariantNumeric: 'tabular-nums' }}>{b.booking_ref as string}</td>
+                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#C9A84C', fontVariantNumeric: 'tabular-nums', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.booking_ref as string}</td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <span style={{ background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, padding: '3px 10px', fontSize: 12, fontWeight: 600, color: '#8B1A2B' }}>{groundName}</span>
                                         </td>
-                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 500, color: '#fff' }}>{b.customer_name as string}</td>
-                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{b.customer_phone as string}</td>
-                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>{fmtTime(b.start_time as string)} → {fmtTime(b.end_time as string)}</td>
-                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#fff' }}>PKR {fmt(Number(b.base_price))}</td>
+                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 500, color: '#fff', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.customer_name as string}</td>
+                                        <td className="hide-mobile" style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{b.customer_phone as string}</td>
+                                        <td style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap' }}>{fmtTime(b.start_time as string)} → {fmtTime(b.end_time as string)}</td>
+                                        <td className="hide-mobile" style={{ padding: '14px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: '#fff' }}>PKR {fmt(Number(b.base_price))}</td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <span style={{ background: st.bg, border: `1px solid ${st.border}`, borderRadius: 12, padding: '3px 10px', fontSize: 11, fontWeight: 600, color: st.color, whiteSpace: 'nowrap' }}>{st.label}</span>
                                         </td>
@@ -178,6 +178,21 @@ export default function DashboardPage() {
                     </table>
                 </div>
             </div>
+            {/* Mobile responsive styles */}
+            <style>{`
+                @media (max-width: 768px) {
+                    .kpi-grid {
+                        grid-template-columns: 1fr 1fr !important;
+                        gap: 12px !important;
+                    }
+                    .kpi-grid > div {
+                        padding: 16px !important;
+                    }
+                    .kpi-value {
+                        font-size: 28px !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 }

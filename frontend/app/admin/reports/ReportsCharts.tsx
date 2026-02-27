@@ -110,10 +110,10 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                 </div>
 
                 {/* Charts Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+                <div className="reports-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
                     {/* Revenue Split Pie */}
                     <ChartCard title="REVENUE SPLIT">
-                        <ResponsiveContainer width="100%" height={250}>
+                        <ResponsiveContainer width="100%" height={250} className="reports-chart-container">
                             <PieChart>
                                 <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" label={(({ name, value }: any) => `${name}: ${fmt(value)}`) as any} labelLine={false}>
                                     {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
@@ -125,7 +125,7 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
 
                     {/* Revenue by Ground */}
                     <ChartCard title="REVENUE BY GROUND">
-                        <ResponsiveContainer width="100%" height={250}>
+                        <ResponsiveContainer width="100%" height={250} className="reports-chart-container">
                             <BarChart data={groundData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                                 <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11, fontFamily: 'Roboto Flex' }} />
@@ -138,7 +138,7 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
 
                     {/* Bookings by Hour */}
                     <ChartCard title="BOOKINGS BY HOUR">
-                        <ResponsiveContainer width="100%" height={250}>
+                        <ResponsiveContainer width="100%" height={250} className="reports-chart-container">
                             <BarChart data={hourData}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                                 <XAxis dataKey="hour" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 9, fontFamily: 'Roboto Flex' }} interval={1} />
@@ -153,7 +153,7 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
 
                     {/* Payment Method Donut */}
                     <ChartCard title="PAYMENT METHOD">
-                        <ResponsiveContainer width="100%" height={250}>
+                        <ResponsiveContainer width="100%" height={250} className="reports-chart-container">
                             <PieChart>
                                 <Pie data={paymentDonut} cx="50%" cy="50%" outerRadius={90} innerRadius={60} dataKey="value">
                                     {paymentDonut.map((entry, i) => <Cell key={i} fill={entry.color} />)}
@@ -213,7 +213,7 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                         <thead>
                             <tr>
                                 {['Day', 'Date', 'Bookings', 'Revenue', 'Tuck Shop', 'Total'].map(h => (
-                                    <th key={h} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>{h}</th>
+                                    <th key={h} className={h === 'Tuck Shop' ? 'hide-mobile' : ''} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textAlign: 'left', padding: '12px 16px', borderBottom: '1px solid rgba(139,26,43,0.3)' }}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -224,7 +224,7 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                                     <td style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{d.date}</td>
                                     <td style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: '#fff' }}>{d.bookingCount}</td>
                                     <td style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#fff' }}>PKR {fmt(d.bookingRevenue)}</td>
-                                    <td style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>PKR {fmt(d.tuckRevenue)}</td>
+                                    <td className="hide-mobile" style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>PKR {fmt(d.tuckRevenue)}</td>
                                     <td style={{ padding: '10px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 700, color: GOLD }}>PKR {fmt(d.total)}</td>
                                 </tr>
                             ))}
@@ -232,7 +232,7 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                                 <td colSpan={2} style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>TOTAL</td>
                                 <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>{summaryBookings}</td>
                                 <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(weekly.reduce((s, d) => s + d.bookingRevenue, 0))}</td>
-                                <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(weekly.reduce((s, d) => s + d.tuckRevenue, 0))}</td>
+                                <td className="hide-mobile" style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(weekly.reduce((s, d) => s + d.tuckRevenue, 0))}</td>
                                 <td style={{ padding: '12px 16px', fontFamily: 'var(--font-ui)', fontSize: 14, fontWeight: 800, color: GOLD }}>PKR {fmt(summaryTotal)}</td>
                             </tr>
                         </tbody>
@@ -285,7 +285,7 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
                     ))}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+                <div className="reports-chart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
                     {/* Weekly Breakdown */}
                     <ChartCard title="WEEKLY BREAKDOWN">
                         <ResponsiveContainer width="100%" height={250}>
@@ -359,12 +359,27 @@ export default function ReportsCharts({ tab, daily, dailyDate, setDailyDate, wee
 // Shared chart card wrapper
 function ChartCard({ title, children, style }: { title: string; children: React.ReactNode; style?: React.CSSProperties }) {
     return (
-        <div style={{
+        <div className="reports-chart-card" style={{
             background: '#111218', border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: 4, padding: 20, position: 'relative', ...style,
         }}>
             <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.25em', color: 'rgba(255,255,255,0.35)', marginBottom: 16 }}>{title}</div>
             {children}
+
+            {/* Mobile responsive chart styles */}
+            <style>{`
+                @media (max-width: 768px) {
+                    .reports-chart-grid {
+                        grid-template-columns: 1fr !important;
+                    }
+                    .reports-chart-card {
+                        padding: 16px !important;
+                    }
+                    .reports-chart-container {
+                        height: 200px !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 }

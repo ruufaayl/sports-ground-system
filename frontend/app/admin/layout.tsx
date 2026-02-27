@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const NAV_SECTIONS = [
     {
@@ -30,9 +31,93 @@ const NAV_SECTIONS = [
     },
 ];
 
+function SidebarContent({ pathname, onNavClick, handleLogout }: { pathname: string; onNavClick: () => void; handleLogout: () => void }) {
+    return (
+        <>
+            {/* Top: Logo + title */}
+            <div style={{ padding: '20px 20px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                    <Image src="/logo.png" alt="ECF" width={56} height={56} style={{ flexShrink: 0 }} />
+                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, letterSpacing: '0.25em', color: '#fff' }}>
+                        EXECUTIVE<br />ADMIN
+                    </div>
+                </div>
+                <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)', marginBottom: 12 }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '0 2px' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00a651', boxShadow: '0 0 8px #00a651', animation: 'pulse-dot 2s infinite' }} />
+                    <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>SYSTEM ONLINE</span>
+                </div>
+            </div>
+
+            {/* Nav */}
+            <nav style={{ flex: 1, padding: '8px 12px', overflow: 'auto' }}>
+                {NAV_SECTIONS.map((section) => (
+                    <div key={section.label}>
+                        <div style={{
+                            fontSize: 10, fontWeight: 600, letterSpacing: '0.3em', textTransform: 'uppercase',
+                            color: 'rgba(201,168,76,0.6)', margin: '24px 0 8px 8px', fontFamily: 'var(--font-ui)',
+                        }}>
+                            {section.label}
+                        </div>
+                        {section.items.map((item) => {
+                            const active = pathname === item.href || (item.href !== '/admin/availability' && pathname.startsWith(item.href));
+                            return (
+                                <Link
+                                    key={item.name}
+                                    href={item.href}
+                                    onClick={onNavClick}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 12,
+                                        height: 44, padding: '0 12px', borderRadius: 4,
+                                        fontSize: 14, fontWeight: 500, textDecoration: 'none',
+                                        borderLeft: `3px solid ${active ? '#8B1A2B' : 'transparent'}`,
+                                        paddingLeft: 17,
+                                        background: active ? 'rgba(139,26,43,0.2)' : 'transparent',
+                                        color: active ? '#fff' : 'rgba(255,255,255,0.7)',
+                                        transition: 'all 0.15s ease',
+                                    }}
+                                    onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(139,26,43,0.15)'; e.currentTarget.style.color = '#fff'; } }}
+                                    onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; } }}
+                                >
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill={active ? '#8B1A2B' : 'rgba(255,255,255,0.5)'} style={{ flexShrink: 0 }}>
+                                        <path d={item.icon} />
+                                    </svg>
+                                    <span>{item.name}</span>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                ))}
+            </nav>
+
+            {/* Footer */}
+            <div style={{ padding: 16, borderTop: '1px solid rgba(139,26,43,0.15)' }}>
+                <div style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 12, padding: '0 4px' }}>
+                    Administrator
+                </div>
+                <button
+                    onClick={handleLogout}
+                    style={{
+                        width: '100%', height: 38, borderRadius: 2,
+                        border: '1px solid rgba(139,26,43,0.4)',
+                        background: 'transparent', color: '#8B1A2B',
+                        fontSize: 12, fontWeight: 600, letterSpacing: '0.15em',
+                        cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                        transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#8B1A2B'; e.currentTarget.style.color = '#fff'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#8B1A2B'; }}
+                >
+                    SIGN OUT
+                </button>
+            </div>
+        </>
+    );
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
     const [isAuthed, setIsAuthed] = useState(false);
-    const [mobileOpen, setMobileOpen] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
     const isLogin = pathname === '/admin';
@@ -44,41 +129,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setIsAuthed(true);
     }, [pathname, isLogin, router]);
 
+    // Close menu on route change
+    useEffect(() => { setMobileMenuOpen(false); }, [pathname]);
+
     if (!isAuthed && !isLogin) return null;
     if (isLogin) return <div style={{ background: '#0D0608', minHeight: '100vh', fontFamily: 'var(--font-ui)' }}>{children}</div>;
 
     const handleLogout = () => { localStorage.removeItem('adminSecret'); router.push('/admin'); };
 
     return (
-        <div style={{ display: 'flex', background: '#0D0608', minHeight: '100vh', fontFamily: 'var(--font-ui)', color: '#fff' }}>
-            {/* Mobile backdrop */}
-            {mobileOpen && <div onClick={() => setMobileOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 30 }} />}
+        <div className="admin-layout" style={{ display: 'flex', background: '#0D0608', minHeight: '100vh', fontFamily: 'var(--font-ui)', color: '#fff', overflowX: 'hidden', maxWidth: '100vw' }}>
 
-            {/* Mobile toggle */}
-            <button
-                onClick={() => setMobileOpen(!mobileOpen)}
-                className="admin-mobile-fab"
-                style={{
-                    display: 'none', position: 'fixed', bottom: 20, right: 20, zIndex: 50,
-                    width: 48, height: 48, borderRadius: '50%', border: 'none',
-                    background: '#8B1A2B', color: '#fff', fontSize: 18, cursor: 'pointer',
-                    boxShadow: '0 0 20px rgba(139,26,43,0.4)', fontWeight: 700,
-                    alignItems: 'center', justifyContent: 'center',
-                }}
-            >
-                {mobileOpen ? '✕' : '☰'}
-            </button>
-
-            <style>{`
-                @media (max-width: 768px) {
-                    .admin-mobile-fab { display: flex !important; }
-                    .admin-sidebar-v2 { position: fixed !important; z-index: 40; transform: ${mobileOpen ? 'translateX(0)' : 'translateX(-100%)'}; transition: transform 0.3s ease; }
-                }
-            `}</style>
-
-            {/* ═══ SIDEBAR ═══ */}
+            {/* ═══ DESKTOP SIDEBAR (hidden on mobile) ═══ */}
             <div
-                className="admin-sidebar-v2"
+                className="admin-sidebar-desktop"
                 style={{
                     width: 280, flexShrink: 0, position: 'sticky', top: 0,
                     height: '100vh', background: '#0d0608',
@@ -87,96 +151,128 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     overflow: 'hidden',
                 }}
             >
-                {/* Top: Logo + title */}
-                <div style={{ padding: '20px 20px 0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                        <Image src="/logo.png" alt="ECF" width={56} height={56} style={{ flexShrink: 0 }} />
-                        <div style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, letterSpacing: '0.25em', color: '#fff' }}>
-                            EXECUTIVE<br />ADMIN
-                        </div>
-                    </div>
-                    <div style={{ height: 1, background: 'linear-gradient(90deg, transparent, #C9A84C, transparent)', marginBottom: 12 }} />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, padding: '0 2px' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00a651', boxShadow: '0 0 8px #00a651', animation: 'pulse-dot 2s infinite' }} />
-                        <span style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>SYSTEM ONLINE</span>
-                    </div>
-                </div>
-
-                {/* Nav */}
-                <nav style={{ flex: 1, padding: '8px 12px', overflow: 'auto' }}>
-                    {NAV_SECTIONS.map((section) => (
-                        <div key={section.label}>
-                            <div style={{
-                                fontSize: 10, fontWeight: 600, letterSpacing: '0.3em', textTransform: 'uppercase',
-                                color: 'rgba(201,168,76,0.6)', margin: '24px 0 8px 8px', fontFamily: 'var(--font-ui)',
-                            }}>
-                                {section.label}
-                            </div>
-                            {section.items.map((item) => {
-                                const active = pathname === item.href || (item.href !== '/admin/availability' && pathname.startsWith(item.href));
-                                return (
-                                    <Link
-                                        key={item.name}
-                                        href={item.href}
-                                        onClick={() => setMobileOpen(false)}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: 12,
-                                            height: 44, padding: '0 12px', borderRadius: 4,
-                                            fontSize: 14, fontWeight: 500, textDecoration: 'none',
-                                            borderLeft: `3px solid ${active ? '#8B1A2B' : 'transparent'}`,
-                                            paddingLeft: 17,
-                                            background: active ? 'rgba(139,26,43,0.2)' : 'transparent',
-                                            color: active ? '#fff' : 'rgba(255,255,255,0.7)',
-                                            transition: 'all 0.15s ease',
-                                        }}
-                                        onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(139,26,43,0.15)'; e.currentTarget.style.color = '#fff'; } }}
-                                        onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; } }}
-                                    >
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill={active ? '#8B1A2B' : 'rgba(255,255,255,0.5)'} style={{ flexShrink: 0 }}>
-                                            <path d={item.icon} />
-                                        </svg>
-                                        <span>{item.name}</span>
-                                    </Link>
-                                );
-                            })}
-                        </div>
-                    ))}
-                </nav>
-
-                {/* Footer */}
-                <div style={{ padding: 16, borderTop: '1px solid rgba(139,26,43,0.15)' }}>
-                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 12, padding: '0 4px' }}>
-                        Administrator
-                    </div>
-                    <button
-                        onClick={handleLogout}
-                        style={{
-                            width: '100%', height: 38, borderRadius: 2,
-                            border: '1px solid rgba(139,26,43,0.4)',
-                            background: 'transparent', color: '#8B1A2B',
-                            fontSize: 12, fontWeight: 600, letterSpacing: '0.15em',
-                            cursor: 'pointer', fontFamily: 'var(--font-ui)',
-                            transition: 'all 0.2s ease',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = '#8B1A2B'; e.currentTarget.style.color = '#fff'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#8B1A2B'; }}
-                    >
-                        SIGN OUT
-                    </button>
-                </div>
+                <SidebarContent pathname={pathname} onNavClick={() => { }} handleLogout={handleLogout} />
             </div>
 
-            {/* ═══ MAIN ═══ */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-                <main style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
+            {/* ═══ MOBILE OVERLAY + SIDEBAR ═══ */}
+            <AnimatePresence>
+                {mobileMenuOpen && (
+                    <>
+                        {/* Backdrop */}
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="admin-mobile-overlay"
+                            style={{
+                                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+                                zIndex: 999, display: 'none',
+                            }}
+                        />
+                        {/* Sidebar drawer */}
+                        <motion.div
+                            initial={{ x: '-100%' }}
+                            animate={{ x: 0 }}
+                            exit={{ x: '-100%' }}
+                            transition={{ duration: 0.3, ease: 'easeOut' }}
+                            className="admin-sidebar-mobile"
+                            style={{
+                                position: 'fixed', top: 0, left: 0, bottom: 0,
+                                width: 280, background: '#0d0608',
+                                borderRight: '1px solid rgba(139,26,43,0.2)',
+                                display: 'none', flexDirection: 'column',
+                                overflow: 'hidden', zIndex: 1000,
+                            }}
+                        >
+                            <SidebarContent pathname={pathname} onNavClick={() => setMobileMenuOpen(false)} handleLogout={handleLogout} />
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* ═══ MOBILE HAMBURGER FAB ═══ */}
+            <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="admin-mobile-fab"
+                style={{
+                    display: 'none', position: 'fixed', bottom: 24, right: 24, zIndex: 1000,
+                    width: 56, height: 56, borderRadius: '50%',
+                    border: '1px solid #C9A84C',
+                    background: '#8B1A2B', color: '#fff', fontSize: 20, cursor: 'pointer',
+                    boxShadow: '0 4px 20px rgba(139,26,43,0.6)',
+                    alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700,
+                }}
+            >
+                {mobileMenuOpen ? '✕' : '☰'}
+            </motion.button>
+
+            {/* ═══ MAIN CONTENT ═══ */}
+            <div className="admin-main-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+                <main className="admin-main-content" style={{ flex: 1, overflowY: 'auto', padding: 32 }}>
                     {children}
                 </main>
             </div>
 
+            {/* ═══ RESPONSIVE STYLES ═══ */}
             <style>{`
                 @keyframes pulse-dot {
                     0%, 100% { opacity: 1; }
                     50% { opacity: 0.4; }
+                }
+
+                /* Global admin mobile overflow fix */
+                .admin-layout * {
+                    max-width: 100%;
+                    box-sizing: border-box;
+                }
+
+                /* Desktop: show desktop sidebar, hide mobile stuff */
+                @media (min-width: 769px) {
+                    .admin-sidebar-desktop { display: flex !important; }
+                    .admin-mobile-fab { display: none !important; }
+                    .admin-mobile-overlay { display: none !important; }
+                    .admin-sidebar-mobile { display: none !important; }
+                }
+
+                /* Mobile: hide desktop sidebar, show mobile controls */
+                @media (max-width: 768px) {
+                    .admin-sidebar-desktop { display: none !important; }
+                    .admin-mobile-fab { display: flex !important; }
+                    .admin-mobile-overlay { display: block !important; }
+                    .admin-sidebar-mobile { display: flex !important; }
+                    .admin-main-content {
+                        padding: 16px !important;
+                    }
+
+                    /* Admin headings smaller on mobile */
+                    .admin-main-content h1 {
+                        font-size: 24px !important;
+                    }
+
+                    /* Tables responsive */
+                    .admin-main-content table {
+                        font-size: 12px;
+                        min-width: 0 !important;
+                    }
+                    .admin-main-content td,
+                    .admin-main-content th {
+                        padding: 8px 6px !important;
+                        word-break: break-word;
+                        min-width: 0;
+                    }
+                    .hide-mobile { display: none !important; }
+
+                    /* Modals */
+                    .admin-modal-content {
+                        width: calc(100vw - 32px) !important;
+                        max-width: 100% !important;
+                        margin: 16px !important;
+                        padding: 24px !important;
+                    }
                 }
             `}</style>
         </div>

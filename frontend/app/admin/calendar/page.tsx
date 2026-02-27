@@ -101,11 +101,11 @@ export default function CalendarPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
                 <h1 style={{ fontFamily: 'var(--font-ui)', fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '0.06em', margin: 0 }}>CALENDAR</h1>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button onClick={() => setMonth(shiftMonth(month, -1))} style={{ background: 'transparent', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2, color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>←</button>
-                    <div style={{ fontFamily: 'var(--font-ui)', fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '0.06em', minWidth: 260, textAlign: 'center' }}>
+                    <button onClick={() => setMonth(shiftMonth(month, -1))} className="cal-nav-btn" style={{ background: 'transparent', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2, color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>←</button>
+                    <div className="cal-month-label" style={{ fontFamily: 'var(--font-ui)', fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: '0.06em', minWidth: 260, textAlign: 'center' }}>
                         {monthLabel(month)}
                     </div>
-                    <button onClick={() => setMonth(shiftMonth(month, 1))} style={{ background: 'transparent', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2, color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>→</button>
+                    <button onClick={() => setMonth(shiftMonth(month, 1))} className="cal-nav-btn" style={{ background: 'transparent', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2, color: '#fff', fontSize: 18, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>→</button>
                     <button onClick={() => setMonth(currentMonth())} style={{
                         background: month === currentMonth() ? '#8B1A2B' : 'transparent',
                         border: '1px solid rgba(139,26,43,0.4)', borderRadius: 2,
@@ -128,7 +128,7 @@ export default function CalendarPage() {
                 {weeks.map((week, wi) => (
                     <div key={wi} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: wi < weeks.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
                         {week.map((day, di) => {
-                            if (day === null) return <div key={di} style={{ minHeight: 110, background: 'rgba(0,0,0,0.1)' }} />;
+                            if (day === null) return <div key={di} className="cal-day-cell" style={{ minHeight: 110, background: 'rgba(0,0,0,0.1)' }} />;
 
                             const dateStr = `${month}-${pad2(day)}`;
                             const dayData = calendarData[dateStr] || { count: 0, bookings: [], revenue: 0 };
@@ -155,12 +155,13 @@ export default function CalendarPage() {
                                         transition: 'all 0.15s',
                                         position: 'relative',
                                     }}
+                                    className="cal-day-cell"
                                     onMouseOver={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(139,26,43,0.06)'; }}
                                     onMouseOut={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
                                 >
                                     {/* Date number */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                                        <span style={{
+                                        <span className="cal-date-num" style={{
                                             fontFamily: 'var(--font-ui)', fontSize: 16, fontWeight: 700,
                                             color: isToday ? '#fff' : 'rgba(255,255,255,0.7)',
                                             background: isToday ? '#8B1A2B' : 'transparent',
@@ -191,7 +192,7 @@ export default function CalendarPage() {
                                             </div>
 
                                             {/* Revenue */}
-                                            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: '#C9A84C', fontWeight: 500 }}>
+                                            <div className="cal-revenue" style={{ fontFamily: 'var(--font-ui)', fontSize: 12, color: '#C9A84C', fontWeight: 500 }}>
                                                 PKR {fmt(dayData.revenue)}
                                             </div>
                                         </>
@@ -249,6 +250,30 @@ export default function CalendarPage() {
                     </div>
                 ))}
             </div>
+
+            {/* Mobile responsive calendar styles */}
+            <style>{`
+                @media (max-width: 768px) {
+                    .cal-day-cell {
+                        min-height: 60px !important;
+                        padding: 6px !important;
+                    }
+                    .cal-revenue {
+                        display: none !important;
+                    }
+                    .cal-date-num {
+                        font-size: 13px !important;
+                    }
+                    .cal-nav-btn {
+                        width: 44px !important;
+                        height: 44px !important;
+                    }
+                    .cal-month-label {
+                        font-size: 18px !important;
+                        min-width: 0 !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 }

@@ -162,8 +162,8 @@ export default function BookingsPage() {
 
             {/* Filter Bar */}
             <div style={{ background: '#111218', borderRadius: 4, padding: 16, marginBottom: 16, border: '1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-                    <input placeholder="Search name, phone, ref..." value={searchQuery} onChange={e => handleSearchInput(e.target.value)} style={{
+                <div className="bookings-filter-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+                    <input placeholder="Search name, phone, ref..." value={searchQuery} onChange={e => handleSearchInput(e.target.value)} className="bookings-search" style={{
                         background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2,
                         color: '#fff', fontSize: 13, padding: '8px 14px', fontFamily: 'var(--font-ui)', outline: 'none', minWidth: 220,
                     }} />
@@ -211,12 +211,12 @@ export default function BookingsPage() {
 
             {/* Table */}
             <div style={{ background: '#111218', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden', marginBottom: 24, opacity: isLoading ? 0.5 : 1, transition: 'opacity 0.2s' }}>
-                <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
+                <div style={{ overflowX: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                             <tr>
                                 {['#', 'REF', 'GROUND', 'CUSTOMER', 'PHONE', 'DATE', 'TIME', 'DUR', 'TOTAL', 'STATUS', 'PAYMENT', 'ACTIONS'].map(h => (
-                                    <th key={h} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textAlign: 'left', padding: '12px 12px', borderBottom: '1px solid rgba(139,26,43,0.3)', whiteSpace: 'nowrap' }}>{h}</th>
+                                    <th key={h} className={['DUR', 'PAYMENT', 'PHONE'].includes(h) ? 'hide-mobile' : ''} style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: 'rgba(255,255,255,0.35)', textAlign: 'left', padding: '12px 12px', borderBottom: '1px solid rgba(139,26,43,0.3)', whiteSpace: 'nowrap' }}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -233,16 +233,16 @@ export default function BookingsPage() {
                                         onMouseLeave={e => { e.currentTarget.style.background = i % 2 === 1 ? 'rgba(255,255,255,0.015)' : 'transparent'; }}
                                     >
                                         <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{rowNum}</td>
-                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#C9A84C' }}>{b.booking_ref as string}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: '#C9A84C', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.booking_ref as string}</td>
                                         <td style={{ padding: '12px' }}><span style={{ background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600, color: '#8B1A2B' }}>{gName}</span></td>
-                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 500, color: '#fff' }}>{b.customer_name as string}</td>
-                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.customer_phone as string}</td>
+                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 500, color: '#fff', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.customer_name as string}</td>
+                                        <td className="hide-mobile" style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.customer_phone as string}</td>
                                         <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.date as string}</td>
                                         <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.7)', whiteSpace: 'nowrap' }}>{fmtTime(b.start_time as string)} → {fmtTime(b.end_time as string)}</td>
-                                        <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.duration_hours as number}h</td>
+                                        <td className="hide-mobile" style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>{b.duration_hours as number}h</td>
                                         <td style={{ padding: '12px', fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 700, color: '#fff' }}>PKR {fmt(Number(b.base_price))}</td>
                                         <td style={{ padding: '12px' }}><span style={{ background: st.bg, border: `1px solid ${st.border}`, borderRadius: 12, padding: '2px 8px', fontSize: 10, fontWeight: 600, color: st.color, whiteSpace: 'nowrap' }}>{st.label}</span></td>
-                                        <td style={{ padding: '12px' }}>
+                                        <td className="hide-mobile" style={{ padding: '12px' }}>
                                             <span style={{
                                                 background: b.payment_status === 'paid' ? 'rgba(0,166,81,0.15)' : 'rgba(201,168,76,0.15)',
                                                 border: `1px solid ${b.payment_status === 'paid' ? 'rgba(0,166,81,0.4)' : 'rgba(201,168,76,0.4)'}`,
@@ -251,7 +251,7 @@ export default function BookingsPage() {
                                             }}>{(b.payment_status as string).toUpperCase()}</span>
                                         </td>
                                         <td style={{ padding: '12px' }}>
-                                            <div style={{ display: 'flex', gap: 6 }}>
+                                            <div className="bookings-actions" style={{ display: 'flex', gap: 6 }}>
                                                 <button onClick={() => setExpandedRow(isExpanded ? null : b.booking_ref as string)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 2, color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 600, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>{isExpanded ? 'CLOSE' : 'VIEW'}</button>
                                                 {b.payment_status === 'pending' && b.booking_status === 'confirmed' && (
                                                     <button onClick={() => handleMarkPaid(b.booking_ref as string)} style={{ background: 'transparent', border: '1px solid rgba(0,166,81,0.4)', borderRadius: 2, color: '#00a651', fontSize: 10, fontWeight: 600, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font-ui)' }}>PAID</button>
@@ -265,7 +265,7 @@ export default function BookingsPage() {
                                         {isExpanded && (
                                             <tr key={`${b.booking_ref}-exp`}>
                                                 <td colSpan={12} style={{ padding: '16px 24px', background: 'rgba(139,26,43,0.04)', borderBottom: '1px solid rgba(139,26,43,0.15)' }}>
-                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
+                                                    <div className="bookings-expanded-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24 }}>
                                                         <div>
                                                             <div style={{ fontFamily: 'var(--font-ui)', fontSize: 10, fontWeight: 600, letterSpacing: '0.2em', color: '#C9A84C', marginBottom: 8 }}>CUSTOMER</div>
                                                             {[['Name', b.customer_name], ['Phone', b.customer_phone], ['Team', b.team_details || '—']].map(([l, v]) => (
@@ -333,6 +333,34 @@ export default function BookingsPage() {
                     }}>NEXT →</button>
                 </div>
             )}
+            {/* Mobile responsive bookings styles */}
+            <style>{`
+                @media (max-width: 768px) {
+                    .bookings-search {
+                        width: 100% !important;
+                        min-width: 0 !important;
+                        height: 44px;
+                    }
+                    .bookings-filter-row {
+                        gap: 8px !important;
+                    }
+                    .bookings-filter-row button {
+                        padding: 6px 10px !important;
+                        font-size: 11px !important;
+                    }
+                    .bookings-actions {
+                        flex-direction: column !important;
+                        gap: 4px !important;
+                    }
+                    .bookings-actions button {
+                        width: 100% !important;
+                    }
+                    .bookings-expanded-grid {
+                        grid-template-columns: 1fr !important;
+                        gap: 16px !important;
+                    }
+                }
+            `}</style>
         </div>
     );
 }

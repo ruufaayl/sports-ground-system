@@ -258,7 +258,7 @@ export default function AvailabilityPage() {
             </div>
 
             {/* Ground Tabs */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            <div className="avail-ground-tabs" style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                 {grounds.map((g) => (
                     <button key={g.id} onClick={() => setSelectedGround(g.name)} style={{
                         background: selectedGround === g.name ? '#8B1A2B' : 'transparent',
@@ -267,6 +267,7 @@ export default function AvailabilityPage() {
                         borderRadius: 2, color: selectedGround === g.name ? '#fff' : 'rgba(255,255,255,0.6)',
                         fontSize: 14, fontWeight: 600, padding: '10px 20px',
                         cursor: 'pointer', fontFamily: 'var(--font-ui)', transition: 'all 0.2s',
+                        flexShrink: 0, whiteSpace: 'nowrap',
                     }}>
                         {g.name}
                         <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 500, background: 'rgba(139,26,43,0.3)', borderRadius: 8, padding: '2px 6px' }}>
@@ -277,7 +278,7 @@ export default function AvailabilityPage() {
             </div>
 
             {/* Slot Grid — always 24 cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            <div className="avail-slot-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                 {isLoading ? (
                     Array.from({ length: 24 }).map((_, i) => (
                         <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 4, minHeight: 80, animation: 'skeleton-pulse 1.5s infinite' }} />
@@ -306,7 +307,7 @@ export default function AvailabilityPage() {
                                     opacity: isCont ? 0.85 : 1,
                                 }}
                             >
-                                <div style={{ fontFamily: 'var(--font-ui)', fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.85)', marginBottom: 2 }}>
+                                <div className="avail-slot-time" style={{ fontFamily: 'var(--font-ui)', fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.85)', marginBottom: 2 }}>
                                     {fmtHour(slot.hour)}
                                 </div>
                                 <div style={{ fontFamily: 'var(--font-ui)', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
@@ -370,7 +371,7 @@ export default function AvailabilityPage() {
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
                     onClick={() => setModal({ ...modal, open: false })}
                 >
-                    <div onClick={e => e.stopPropagation()} style={{
+                    <div onClick={e => e.stopPropagation()} className="admin-modal-content" style={{
                         background: '#111218', border: '1px solid rgba(139,26,43,0.3)',
                         borderRadius: 4, padding: 40, maxWidth: 520, width: '100%', maxHeight: '90vh', overflowY: 'auto',
                     }}>
@@ -450,6 +451,29 @@ export default function AvailabilityPage() {
                     </div>
                 </div>
             )}
+            {/* Mobile responsive styles */}
+            <style>{`
+                @media (max-width: 768px) {
+                    .avail-slot-grid {
+                        grid-template-columns: repeat(2, 1fr) !important;
+                        gap: 8px !important;
+                    }
+                    .avail-slot-grid > div {
+                        padding: 10px !important;
+                    }
+                    .avail-slot-time {
+                        font-size: 14px !important;
+                    }
+                    .avail-ground-tabs {
+                        flex-wrap: nowrap !important;
+                        -webkit-overflow-scrolling: touch;
+                        scrollbar-width: none;
+                    }
+                    .avail-ground-tabs::-webkit-scrollbar {
+                        display: none;
+                    }
+                }
+            `}</style>
         </div>
     );
 }
