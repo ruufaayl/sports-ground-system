@@ -109,6 +109,11 @@ export default function FifaCard({ imagePath, index, style, loadingStrategy = 'l
                             display: 'block',
                         }}
                         draggable={false}
+                        onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            const card = target.closest('.player-card') as HTMLElement
+                            if (card) card.style.display = 'none'
+                        }}
                     />
                     {/* Image vignette */}
                     <div style={{

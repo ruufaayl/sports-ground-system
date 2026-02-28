@@ -39,7 +39,7 @@ function FieldLines() {
 }
 
 // ── Player Cards Showcase (6 cards, lazy loaded) ──────────────────────────────
-const TOTAL_PLAYERS = 32;
+const TOTAL_PLAYERS = 111 // Adjusted to 111 to include all files (count is 72, but highest number is 111)
 const POSITIONS: {
   top?: string; bottom?: string; left?: string; right?: string;
   rotate: string; scale: number; floatDuration: string; floatDelay: string;
@@ -52,45 +52,48 @@ const POSITIONS: {
     { bottom: '12%', right: '5%', rotate: '10deg', scale: 0.8, floatDuration: '3.6s', floatDelay: '1.2s' },
   ];
 
-function pickSix(): number[] {
-  const pool = Array.from({ length: TOTAL_PLAYERS }, (_, i) => i + 1);
-  const picked: number[] = [];
-  while (picked.length < 6) {
-    const idx = Math.floor(Math.random() * pool.length);
-    picked.push(pool.splice(idx, 1)[0]);
-  }
-  return picked;
+const getRandomPlayers = (count: number): number[] => {
+  const all = Array.from({ length: TOTAL_PLAYERS }, (_, i) => i + 1)
+  const shuffled = all.sort(() => Math.random() - 0.5)
+  return shuffled.slice(0, count)
 }
 
 function PlayerCardsShowcase() {
-  const [playerNums, setPlayerNums] = useState<number[]>([]);
+  const [selectedPlayers, setSelectedPlayers] = useState<number[]>(
+    () => getRandomPlayers(6)
+  )
   const [visible, setVisible] = useState(true);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    setPlayerNums(pickSix());
     const interval = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
-        setPlayerNums(pickSix());
+        setSelectedPlayers(getRandomPlayers(6))
         setVisible(true);
       }, 600);
     }, 60000);
     return () => clearInterval(interval);
   }, []);
 
-  if (playerNums.length === 0) return null;
+  if (selectedPlayers.length === 0) return null;
 
   return (
     <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 5 }} className="hide-mobile">
       {POSITIONS.map((pos, i) => {
-        const num = playerNums[i];
+        const num = selectedPlayers[i];
         if (!num) return null;
         const isHovered = hoveredIdx === i;
         const otherHovered = hoveredIdx !== null && !isHovered;
+
+        const getPlayerPath = (n: number): string => {
+          return `/players/player%20(${n}).png`
+        }
+
         return (
           <div
             key={`pos-${i}`}
+            className="player-card"
             style={{
               position: 'absolute',
               pointerEvents: 'auto',
@@ -112,7 +115,7 @@ function PlayerCardsShowcase() {
               transition: 'transform 0.4s ease, filter 0.3s ease',
             }}>
               <FifaCard
-                imagePath={`/players/player (${num}).png`}
+                imagePath={getPlayerPath(num)}
                 index={num - 1}
                 loadingStrategy={i < 2 ? 'eager' : 'lazy'}
               />
